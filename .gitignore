@@ -1,0 +1,9 @@
+.idea
+cmake-build-debug/
+build/
+test_data/
+docs/html
+.DS_Store
+.vscode/settings.json
+.vscode/sftp.json
+platforms_project/
