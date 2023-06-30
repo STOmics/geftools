@@ -335,7 +335,8 @@ bool BgefWriter::storeWholeExon(DnbMatrix & dnb_matrix, int binsize)
     if(!m_bexon) return false;
     char dataName[32]={0};
     sprintf(dataName, "bin%d", binsize);
-    hsize_t dims[2] = {dnb_matrix.dnb_attr.len_x, dnb_matrix.dnb_attr.len_y};
+    hsize_t dims[2] = {(hsize_t)dnb_matrix.dnb_attr.len_x,
+                       (hsize_t)dnb_matrix.dnb_attr.len_y};
     hid_t dataspace_id = H5Screate_simple(2, dims, nullptr);
     hid_t dataset_id = 0;
     if(dnb_matrix.dnb_attr.max_exon > USHRT_MAX)

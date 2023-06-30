@@ -1032,7 +1032,7 @@ void cgefCellgem::writeCell_new()
                     ptr->m_cx,
                     ptr->m_cy,
                     offset,
-                    ptr->m_map_gExp.size(),
+                    (unsigned short)ptr->m_map_gExp.size(),
                     ptr->m_expcnt,
                     ptr->m_dnbcnt,
                     ptr->m_area,

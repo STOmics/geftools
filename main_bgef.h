@@ -14,27 +14,29 @@
 #ifndef GEFTOOLS__MAIN_BGEF_H_
 #define GEFTOOLS__MAIN_BGEF_H_
 
+#include <zlib.h>
+
+#include <queue>
 #include <string>
 #include <thread>
-#include <zlib.h>
-#include <queue>
+
+#include "bgef_options.h"
 #include "bgef_reader.h"
 #include "bgef_writer.h"
 #include "cxxopts.h"
-#include "bgef_options.h"
 #include "utils.h"
 
 using namespace std;
 
-//struct BgefOptions {
-//  string input_file;
-//  string output_file;
-//  vector<int> bin_sizes;
-//  int offset_x;
-//  int offset_y;
-//  int threads;
-//  bool verbose;
-//};
+// struct BgefOptions {
+//   string input_file;
+//   string output_file;
+//   vector<int> bin_sizes;
+//   int offset_x;
+//   int offset_y;
+//   int threads;
+//   bool verbose;
+// };
 
 /**
  * @brief Main entrance of the geftools cgef command.
@@ -55,29 +57,21 @@ int bgef(int argc, char *argv[]);
  * @param verbose
  * @return
  */
-int GEFTOOLS_API generateBgef(const string &input_file,
-                 const string &bgef_file,
-                 const string &stromics,
-                 int n_thread = 8,
-                 vector<unsigned int> bin_sizes = vector<unsigned int>(),
-                 vector<int> region = vector<int>(),
-                 bool verbose = false,
-                 bool bstat = true);
+int GEFTOOLS_API generateBgef(const string &input_file, const string &bgef_file, const string &stromics,
+                              int n_thread = 8, vector<unsigned int> bin_sizes = vector<unsigned int>(),
+                              vector<int> region = vector<int>(), bool verbose = false, bool bstat = true);
 
 void GEFTOOLS_API gem2gef(BgefOptions *opts);
 
 int GEFTOOLS_API mRead(BgefOptions *opts);
 
-
 void GEFTOOLS_API writednb(BgefOptions *opts, BgefWriter &bgef_writer, int bin);
 
 void GEFTOOLS_API StereoDataToGef(const string &output_file, int binsize, int sz, unsigned long *cellptr);
 
-void GEFTOOLS_API MergeProteinAndRnaMatrices(const string &protein_raw_gef,
-                                const string &rna_raw_gef,
-                                const string &protein_output_gef,
-                                const string &rna_output_gef);
+void GEFTOOLS_API MergeProteinAndRnaMatrices(const string &protein_raw_gef, const string &rna_raw_gef,
+                                             const string &protein_output_gef, const string &rna_output_gef);
 
 void GEFTOOLS_API Gem2Image(const string &gem_path, const string &tif_path);
 
-#endif //GEFTOOLS__MAIN_BGEF_H_
+#endif  // GEFTOOLS__MAIN_BGEF_H_

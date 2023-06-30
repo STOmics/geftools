@@ -71,6 +71,7 @@ class GEFTOOLS_API BgefReader {
 
     void getGeneExpression(unordered_map<string, vector<Expression>> & gene_exp_map, const vector<int>& regions);
     void getGeneExpression(unordered_map<string, vector<Expression>> & gene_exp_map);
+    void SortGeneExpression(map<string, vector<Expression>> & gene_exp_map);
 
     /**
      * @brief Get the shape of wholeExp matrix.

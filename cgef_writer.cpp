@@ -436,7 +436,7 @@ void CgefWriter::addDnbExp(vector<cv::Point> & dnb_coordinates,
             expression_num_, //offset
             gene_count,
             exp_count,
-            dnb_coordinates.size(),
+            (unsigned short)dnb_coordinates.size(),
             area,
             cell_type_id
     };
@@ -925,6 +925,7 @@ int CgefWriter::addLevel(int allocat, int cnum, float ratio, int *cansize, int *
     H5Tclose(m_blk_memtype);
     H5Tclose(m_blk_filetype);
     H5Gclose(m_level_gid);
+    return 0;
 }
 
 void CgefWriter::getblkcelldata_top(int lev, int cnt)

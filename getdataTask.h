@@ -15,7 +15,7 @@ class getdataTask:public ITask
 {
 public:
     getdataTask(unsigned short gene_id, Gene * gene, Expression * expression, 
-                        unordered_map<string, vector<Expression>> &hashexp):
+                        map<string, vector<Expression>> &hashexp):
     m_gene_id(gene_id),m_genePtr(gene),m_expPtr(expression),m_hashExp(hashexp)
     {
 
@@ -53,7 +53,7 @@ private:
     unsigned int m_min_x, m_min_y, m_max_x, m_max_y;
     Gene *m_genePtr = nullptr;
     Expression *m_expPtr = nullptr;
-    unordered_map<string, vector<Expression>> &m_hashExp;
+    map<string, vector<Expression>> &m_hashExp;
     static std::mutex m_mtx;
 };
 

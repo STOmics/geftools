@@ -296,6 +296,31 @@ struct GEFTOOLS_API sapBgefData
     int y;
 };
 
+struct GEFTOOLS_API LabelGeneData {
+    LabelGeneData(const char* g, unsigned int c)
+    {
+        int i = 0;
+        while (g[i] != '\0')
+        {
+            gene_name[i] = g[i];
+            ++i;
+        }
+        mid_cnt = c;
+    }
+    char gene_name[64] = {0};
+    unsigned int mid_cnt;
+};
+
+struct GEFTOOLS_API LabelCellData {
+    LabelCellData() = default;
+    LabelCellData(uint16_t a, uint16_t b, float c, uint32_t d)
+        : cluster_id(a), mid_cnt(b), area(c), cell_id(d) {}
+    uint16_t cluster_id;
+    uint16_t mid_cnt;
+    float area;
+    uint32_t cell_id;
+};
+
 struct GEFTOOLS_API sapCgefData {
     unsigned int cell_count;
     float total_area;
@@ -307,6 +332,12 @@ struct GEFTOOLS_API sapCgefData {
     float median_exp_count;
     float median_dnb_count;
     float median_area;
+};
+
+struct GEFTOOLS_API ClusterPosition {
+  ClusterPosition(int x, int y) : x(x), y(y) {}
+  int x;
+  int y;
 };
 
 hid_t getMemtypeOfGeneData();

@@ -8,20 +8,17 @@
 #ifndef GEFTOOLS_CELLADJUST_H
 #define GEFTOOLS_CELLADJUST_H
 
-#include "gef.h"
-#include "cgef_writer.h"
 #include <unordered_map>
 #include <unordered_set>
+
+#include "cgef_writer.h"
+#include "gef.h"
 #include "opencv2/opencv.hpp"
-//using namespace cv;
+// using namespace cv;
 
-
-struct GEFTOOLS_API cellgem_label
-{
-    cellgem_label(uint32_t geneid, int x, int y, uint32_t midcnt, uint32_t cellid):
-    geneid(geneid),x(x),y(y),midcnt(midcnt),cellid(cellid)
-    {
-    }
+struct GEFTOOLS_API cellgem_label {
+    cellgem_label(uint32_t geneid, int x, int y, uint32_t midcnt, uint32_t cellid) :
+        geneid(geneid), x(x), y(y), midcnt(midcnt), cellid(cellid) {}
     uint32_t geneid;
     int x;
     int y;
@@ -29,17 +26,20 @@ struct GEFTOOLS_API cellgem_label
     uint32_t cellid;
 };
 
-struct GEFTOOLS_API geneData
-{
-    geneData(uint16_t e, uint16_t m, uint32_t c):exon(e),mid(m),cid(c){}
+struct GEFTOOLS_API geneData {
+    geneData(uint16_t e, uint16_t m, uint32_t c) : exon(e), mid(m), cid(c) {}
     uint16_t exon;
     uint16_t mid;
     uint32_t cid;
 };
 
-class GEFTOOLS_API cellAdjust
-{
-public:
+struct Pos {
+    double x;
+    double y;
+};
+
+class GEFTOOLS_API cellAdjust {
+  public:
     cellAdjust();
     ~cellAdjust();
     void readBgef(const string &strinput);
@@ -54,7 +54,7 @@ public:
     void writeGene();
     void cgeftogem(const string &strbgef, const string &strcgef, const string &strout);
     void cgeftogem_exon(const string &strbgef, const string &strcgef, const string &strout);
-    bool bexon(){return m_bexon;}
+    bool bexon() { return m_bexon; }
     void createRegionGef(const string &strout);
     void getRegionGenedata(vector<vector<int>> &m_vecpos);
 
@@ -65,11 +65,19 @@ public:
     void writeGeneToCgef();
     void clear();
 
-    void getSapRegion(const string &strinput, int bin, int thcnt, vector<vector<int>> &vecpos, vector<sapBgefData> &vecdata);
+    void getSapRegion(const string &strinput, int bin, int thcnt, vector<vector<int>> &vecpos,
+                      vector<sapBgefData> &vecdata, float &region_area);
     void getRegionCelldataSap(vector<vector<int>> &m_vecpos);
     void getSapCellbinRegion(sapCgefData &vecdata);
 
-private:
+    void getMultiLabelInfoFromBgef(const string &strinput, vector<vector<int>> &vecpos, vector<LabelGeneData> &vecdata,
+                                   uint32_t &total_mid, int bin, int thcnt);
+    void getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<int>> &vecpos, vector<LabelCellData> &vecdata,
+                                   vector<LabelCellData> &total_data);
+    void GetPositionIndexByClusterId(const char *input_file, std::vector<int> cls_id,
+                                     std::vector<std::vector<int>> &clusterpos_list);
+
+  private:
     bool m_bexon = false;
     uint32_t m_genencnt;
     uint64_t m_geneexpcnt;
@@ -80,7 +88,7 @@ private:
     uint32_t m_resolution;
     unordered_map<uint64_t, vector<Dnbs_exon>> m_hash_vecdnb_exon;
     unordered_map<uint32_t, map<uint32_t, uint16_t>> m_hash_filter_cells;
-    //map<uint32_t, Rect> m_hash_cellrect;
+    // map<uint32_t, Rect> m_hash_cellrect;
     cv::Mat m_fill_points;
     unsigned int m_block_size[4];
     CellData *m_cell_arrayptr = nullptr;
@@ -88,7 +96,7 @@ private:
     map<uint32_t, vector<GeneExpData>> m_map_gene;
     BgefOptions *m_bgefopts = nullptr;
 
-    char m_szomics[32]={0};
+    char m_szomics[32] = {0};
     int m_maxx = 0, m_maxy = 0;
     hid_t m_bgeffile_id = 0;
     short *m_borderdataPtr = nullptr;
@@ -111,8 +119,9 @@ private:
     map<unsigned int, vector<cv::Point>> borderDatas;
     bool extend_method_ = false;
     int lasso_total_area_;
+
+    cv::Mat multilabel_img;
+    int cellbin_minx = INT_MAX, cellbin_miny = INT_MAX, cellbin_maxx = 0, cellbin_maxy = 0;
 };
-
-
 
 #endif
