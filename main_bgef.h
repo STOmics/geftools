@@ -5,10 +5,11 @@
  * @LastEditTime: 2022-05-16 14:17:38
  * @Description: file content
  */
-/** @file main_cgef.h
-    @brief Main entrance of the geftools cgef command.
 
-    Created by huangzhibo on 2021/12/14.
+/* @file main_bgef.h
+   @brief Main entrance of the geftools bgef command.
+
+   Created by huangzhibo on 2021/12/14.
 */
 
 #ifndef GEFTOOLS__MAIN_BGEF_H_
@@ -39,9 +40,9 @@ using namespace std;
 // };
 
 /**
- * @brief Main entrance of the geftools cgef command.
+ * @brief Main entrance of the geftools bgef command.
  *
- * Command line arguments for geftools cgef will be resolved here.
+ * Command line arguments for geftools bgef will be resolved here.
  * @param argc
  * @param argv
  * @return

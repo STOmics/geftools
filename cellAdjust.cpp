@@ -1460,6 +1460,95 @@ void cellAdjust::getSapRegion(const string &strinput, int bin, int thcnt, vector
     free(m_parry);
 }
 
+void cellAdjust::getSapRegionIndex(const string &strinput, int bin, int thcnt, vector<vector<int>> &vecpos,
+                                   vector<vector<int>> &vecdata) {
+    timer st(__FUNCTION__);
+    m_bgeffile_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+
+    char dataName[32] = {0};
+    sprintf(dataName, "/wholeExp/bin%d", bin);
+
+    hsize_t dims[2];
+    hid_t gene_did = H5Dopen(m_bgeffile_id, dataName, H5P_DEFAULT);
+    if (gene_did < 0) {
+        printf("can't find %s\n", dataName);
+        char errMsg[32] = {0};
+        sprintf(errMsg, "/wholeExp/bin%d", bin);
+        reportErrorCode2File(errorCode::E_MISSINGFILEINFO, errMsg);
+        exit(-1);
+    }
+    hid_t gene_sid = H5Dget_space(gene_did);
+    H5Sget_simple_extent_dims(gene_sid, dims, nullptr);
+
+    hid_t memtype = H5Tcreate(H5T_COMPOUND, sizeof(BinStat));
+    H5Tinsert(memtype, "MIDcount", HOFFSET(BinStat, mid_count), H5T_NATIVE_UINT);
+    H5Tinsert(memtype, "genecount", HOFFSET(BinStat, gene_count), H5T_NATIVE_USHORT);
+
+    m_parry = (BinStat *)malloc(dims[0] * dims[1] * sizeof(BinStat));
+    H5Dread(gene_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_parry);
+    H5Tclose(memtype);
+
+    hid_t attr = H5Aopen(gene_did, "minX", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_UINT, &m_min_x);
+    attr = H5Aopen(gene_did, "minY", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_UINT, &m_min_y);
+    attr = H5Aopen(gene_did, "lenX", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_UINT, &m_max_x);
+    attr = H5Aopen(gene_did, "lenY", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
+
+    uint32_t resolution = 0;
+    attr = H5Aopen(gene_did, "resolution", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_UINT, &resolution);
+    printf("minx:%d miny:%d lenx:%d leny:%d resolution:%d\n", m_min_x, m_min_y, m_max_x, m_max_y, resolution);
+    H5Aclose(attr);
+    H5Sclose(gene_sid);
+    H5Dclose(gene_did);
+
+    vector<vector<cv::Point>> vecbors;
+    for (vector<int> &vec : vecpos) {
+        vector<cv::Point> vtmp;
+        vtmp.reserve(vec.size() / 2);
+        for (int i = 0; i < vec.size(); i += 2) {
+            vtmp.emplace_back(vec[i], vec[i + 1]);
+        }
+        vecbors.emplace_back(std::move(vtmp));
+    }
+    cv::Mat fill_points = cv::Mat::zeros(m_max_y, m_max_x, CV_8UC1);
+    cv::drawContours(fill_points, vecbors, -1, 1, -1);
+
+    std::vector<int> x_list;
+    std::vector<int> y_list;
+    // if (bin != 1) {
+        int id = 0, m, n;
+        for (uint32_t x = 0; x < dims[0]; x++)  // cols
+        {
+            for (uint32_t y = 0; y < dims[1]; y++)  // rows
+            {
+                id = x * dims[1] + y;
+                m = x * bin;
+                n = y * bin;
+                if (fill_points.at<uchar>(n, m)) {
+                    if (m_parry[id].gene_count) {
+                        x_list.emplace_back(m);
+                        y_list.emplace_back(n);
+                    }
+                }
+            }
+        }
+        vecdata.emplace_back(x_list);
+        vecdata.emplace_back(y_list);
+    // } else {
+    //     ThreadPool thpool(thcnt);
+    //     for (int i = 0; i < thcnt; i++) {
+    //         getsapdataTask *ptask = new getsapdataTask(i, thcnt, fill_points, m_parry, vecdata);
+    //         thpool.addTask(ptask);
+    //     }
+    //     thpool.waitTaskDone();
+    // }
+    free(m_parry);
+}
+
 void cellAdjust::getRegionCelldataSap(vector<vector<int>> &m_vecpos) {
     if (m_vecpos.empty()) {
         std::cout << "No region data input!" << std::endl;

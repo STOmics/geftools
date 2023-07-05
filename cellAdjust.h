@@ -67,6 +67,8 @@ class GEFTOOLS_API cellAdjust {
 
     void getSapRegion(const string &strinput, int bin, int thcnt, vector<vector<int>> &vecpos,
                       vector<sapBgefData> &vecdata, float &region_area);
+    void getSapRegionIndex(const string &strinput, int bin, int thcnt, vector<vector<int>> &vecpos,
+                           vector<vector<int>> &vecdata);
     void getRegionCelldataSap(vector<vector<int>> &m_vecpos);
     void getSapCellbinRegion(sapCgefData &vecdata);
 

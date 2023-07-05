@@ -7,9 +7,9 @@
 #ifndef GEFTOOLS__MAIN_VIEW_H_
 #define GEFTOOLS__MAIN_VIEW_H_
 
-#include "utils.h"
-#include "cgef_reader.h"
 #include "bgef_reader.h"
+#include "cgef_reader.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -26,7 +26,7 @@ struct ViewOptions {
     int bin_size;
     bool restrict_region;
     bool force_genes;
-    bool exclude; ///< Set the list of genes to exclude, not include.
+    bool exclude;  ///< Set the list of genes to exclude, not include.
     bool verbose;
 };
 
@@ -38,4 +38,4 @@ struct ViewOptions {
  */
 int view(int argc, char *argv[]);
 
-#endif //GEFTOOLS__MAIN_VIEW_H_
+#endif  // GEFTOOLS__MAIN_VIEW_H_

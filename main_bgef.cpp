@@ -155,12 +155,10 @@ void gem2gef(BgefOptions *opts) {
 
     unsigned int resolution;
     float gef_area;
-    bool isGem = false;
     // int dnb_max_x, dnb_max_y;
     if (!H5Fis_hdf5(opts->input_file_.c_str())) {
         mRead(opts);
         resolution = parseResolutin(opts->input_file_);
-        isGem = true;
     } else {
         BgefReader bgef_reader(opts->input_file_, 1, opts->verbose_);
         ExpressionAttr expression_attr = bgef_reader.getExpressionAttr();
