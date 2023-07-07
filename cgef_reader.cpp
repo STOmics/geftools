@@ -12,7 +12,7 @@ CgefReader::CgefReader(const string &filename, bool verbose) {
     cell_dataset_id_ = openCellDataset(group_id_);
     cell_exp_dataset_id_ = openCellExpDataset(group_id_);
     isOldCellExpVersion = isOlderCellExpDataVersion(file_id_);
-    
+
     gene_dataset_id_ = openGeneDataset(group_id_);
     gene_exp_dataset_id_ = openGeneExpDataset(group_id_);
     gene_exp_dataspace_id_ = H5Dget_space(gene_exp_dataset_id_);
@@ -32,19 +32,15 @@ CgefReader::CgefReader(const string &filename, bool verbose) {
 
     char dname[128] = {0};
     sprintf(dname, "/cellBin/cellExon");
-    if(H5Lexists(file_id_, dname, H5P_DEFAULT)>0)
-    {
+    if (H5Lexists(file_id_, dname, H5P_DEFAULT) > 0) {
         m_bexon = true;
     }
 }
 
-CgefReader::~CgefReader() {
-    closeH5();
-}
+CgefReader::~CgefReader() { closeH5(); }
 
-void CgefReader::closeH5()
-{
-    if(gene_array_ == nullptr) return;
+void CgefReader::closeH5() {
+    if (gene_array_ == nullptr) return;
     H5Tclose(str32_type_);
     H5Dclose(cell_dataset_id_);
     H5Dclose(gene_dataset_id_);
@@ -57,8 +53,7 @@ void CgefReader::closeH5()
     H5Fclose(file_id_);
     free(gene_array_);
     gene_array_ = nullptr;
-    if (cell_array_ != nullptr)
-        free(cell_array_);
+    if (cell_array_ != nullptr) free(cell_array_);
     if (cell_array_current_ != nullptr) free(cell_array_current_);
     if (cell_id_array_current_ != nullptr) free(cell_id_array_current_);
     if (cell_id_to_index_ != nullptr) free(cell_id_to_index_);
@@ -67,10 +62,8 @@ void CgefReader::closeH5()
     // if(m_borderdataPtr!=nullptr) free(m_borderdataPtr);
 }
 
-void CgefReader::getAttr()
-{
-    if(m_ver == 0)
-    {
+void CgefReader::getAttr() {
+    if (m_ver == 0) {
         hid_t attr = H5Aopen(file_id_, "version", H5P_DEFAULT);
         H5Aread(attr, H5T_NATIVE_UINT32, &m_ver);
 
@@ -101,15 +94,13 @@ hid_t CgefReader::openCellDataset(hid_t group_id) {
     hid_t s1_tid = H5Dget_type(cell_dataset_id_);
     int nmemb = H5Tget_nmembers(s1_tid);
 
-    if(nmemb < 9){
+    if (nmemb < 9) {
         cerr << "Please use geftools(>=0.6) to regenerate this cgef file." << endl;
-        reportErrorCode2File(errorCode::E_LOWVERSION, 
-                            "Please use geftools(>=0.6) to regenerate this cgef file.");
+        reportErrorCode2File(errorCode::E_LOWVERSION, "Please use geftools(>=0.6) to regenerate this cgef file.");
         exit(2);
     }
 
-    if(H5Aexists(cell_dataset_id_, "blockIndex"))
-    {
+    if (H5Aexists(cell_dataset_id_, "blockIndex")) {
         hsize_t dims_attr[1];
         hid_t attr, attr_dataspace;
         attr = H5Aopen(cell_dataset_id_, "blockIndex", H5P_DEFAULT);
@@ -125,19 +116,14 @@ hid_t CgefReader::openCellDataset(hid_t group_id) {
 
         H5Aclose(attr);
         H5Sclose(attr_dataspace);
-    }
-    else
-    {
+    } else {
         hid_t d_id = 0;
-        if(H5Lexists(group_id, "blockIndex", H5P_DEFAULT)>0)
-        {
+        if (H5Lexists(group_id, "blockIndex", H5P_DEFAULT) > 0) {
             d_id = H5Dopen(group_id, "blockIndex", H5P_DEFAULT);
-        }
-        else if(H5Lexists(group_id, "blkidx", H5P_DEFAULT)>0)
-        {
+        } else if (H5Lexists(group_id, "blkidx", H5P_DEFAULT) > 0) {
             d_id = H5Dopen(group_id, "blkidx", H5P_DEFAULT);
         }
-        
+
         hsize_t dims[1];
         hid_t s_id = H5Dget_space(d_id);
         H5Sget_simple_extent_dims(s_id, dims, nullptr);
@@ -189,35 +175,31 @@ hid_t CgefReader::openGeneExpDataset(hid_t group_id) {
     return gene_exp_dataset_id_;
 }
 
-unsigned int CgefReader::getCellNum() const {
-    return cell_num_current_;
-}
+unsigned int CgefReader::getCellNum() const { return cell_num_current_; }
 
-unsigned int CgefReader::getGeneNum() const {
-    return gene_num_current_;
-}
+unsigned int CgefReader::getGeneNum() const { return gene_num_current_; }
 
-unsigned long long int CgefReader::getExpressionNum() const {
-    return expression_num_current_;
-}
+unsigned long long int CgefReader::getExpressionNum() const { return expression_num_current_; }
 
 GeneData *CgefReader::loadGene(bool reload) {
     unsigned long cprev = clock();
     if (gene_array_ != nullptr) {
-        if (reload) free(gene_array_);
-        else return gene_array_;
+        if (reload)
+            free(gene_array_);
+        else
+            return gene_array_;
     }
 
     hid_t memtype = getMemtypeOfGeneData();
-    gene_array_ = (GeneData *) malloc(gene_num_ * sizeof(GeneData));
+    gene_array_ = (GeneData *)malloc(gene_num_ * sizeof(GeneData));
     H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_array_);
 
     for (unsigned int i = 0; i < gene_num_; i++) {
         genename_to_id_[gene_array_[i].gene_name] = i;
     }
 
-    gene_id_to_index_ = (int *) malloc(gene_num_ * sizeof(int));
-    iota(gene_id_to_index_, gene_id_to_index_+gene_num_, 0);
+    gene_id_to_index_ = (int *)malloc(gene_num_ * sizeof(int));
+    iota(gene_id_to_index_, gene_id_to_index_ + gene_num_, 0);
 
     if (verbose_) printCpuTime(cprev, "loadGene");
     return gene_array_;
@@ -226,28 +208,30 @@ GeneData *CgefReader::loadGene(bool reload) {
 CellData *CgefReader::loadCell(bool reload) {
     unsigned long cprev = clock();
     if (cell_array_ != nullptr) {
-        if (reload) free(cell_array_);
-        else return cell_array_;
+        if (reload)
+            free(cell_array_);
+        else
+            return cell_array_;
     }
 
     hid_t memtype = getMemtypeOfCellData();
-    cell_array_ = (CellData *) malloc(cell_num_ * sizeof(CellData));
+    cell_array_ = (CellData *)malloc(cell_num_ * sizeof(CellData));
     H5Dread(cell_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_array_);
     if (verbose_) printCpuTime(cprev, "getCell");
     return cell_array_;
 }
 
 void CgefReader::getGeneNameList(vector<string> &gene_list) {
-    for(unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-        if(gene_id_to_index_[gene_id]<0) continue;
+    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+        if (gene_id_to_index_[gene_id] < 0) continue;
         gene_list.emplace_back(gene_array_[gene_id].gene_name);
     }
 }
 
 void CgefReader::getGeneNames(char *gene_list) {
     int i = 0;
-    for(unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-        if(gene_id_to_index_[gene_id]<0) continue;
+    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+        if (gene_id_to_index_[gene_id] < 0) continue;
         memcpy(&gene_list[i * 32], gene_array_[gene_id].gene_name, 32);
         i++;
     }
@@ -268,7 +252,7 @@ void CgefReader::getCellNameList(unsigned long long int *cell_pos_list) {
     }
 }
 
-//indptr length = gene_num_ + 1
+// indptr length = gene_num_ + 1
 int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indptr, unsigned int *count,
                                        const char *order) {
     if (order[0] == 'g') {
@@ -278,12 +262,12 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
 
             auto *gene_exp_data = static_cast<GeneExpData *>(malloc(expression_num_current_ * sizeof(GeneExpData)));
 
-            for(unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-                if(gene_id_to_index_[gene_id]<0) continue;
+            for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+                if (gene_id_to_index_[gene_id] < 0) continue;
                 GeneData gene_data = gene_array_[gene_id];
-                if(gene_data.cell_count ==0 ) {
-                    indptr[rows+1] = indptr[rows];
-                    rows ++;
+                if (gene_data.cell_count == 0) {
+                    indptr[rows + 1] = indptr[rows];
+                    rows++;
                     continue;
                 }
 
@@ -292,10 +276,10 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
                 unsigned int c_count = 0;
                 for (unsigned int j = 0; j < gene_data.cell_count; j++) {
                     unsigned int cid = gene_exp_data[j].cell_id;
-                    if(restrict_region_){
-                        if(!isInRegion(cid)) continue;
-                        indices[n] = cell_id_to_index_[cid-start_cell_id];
-                    }else{
+                    if (restrict_region_) {
+                        if (!isInRegion(cid)) continue;
+                        indices[n] = cell_id_to_index_[cid - start_cell_id];
+                    } else {
                         indices[n] = cid;
                     }
 
@@ -303,8 +287,8 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
                     n++;
                     c_count++;
                 }
-                indptr[rows+1] = indptr[rows] + c_count;
-                rows ++;
+                indptr[rows + 1] = indptr[rows] + c_count;
+                rows++;
             }
             assert(rows == gene_num_current_);
             assert(n == expression_num_current_);
@@ -330,8 +314,9 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
             indptr[0] = 0;
 
             if (isOldCellExpVersion) {
-                auto *cell_exp_data = static_cast<olderCellExpData *>(malloc(expression_num_current_ * sizeof(olderCellExpData)));
-                CellData * cell_datas = getCell();
+                auto *cell_exp_data =
+                    static_cast<olderCellExpData *>(malloc(expression_num_current_ * sizeof(olderCellExpData)));
+                CellData *cell_datas = getCell();
                 for (unsigned int i = 0; i < cell_num_current_; i++) {
                     CellData cell = cell_datas[i];
                     selectOlderCellExp(cell.offset, cell.gene_count, cell_exp_data);
@@ -339,20 +324,20 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
                     unsigned short gene_id, g_count = 0;
                     for (unsigned int j = 0; j < cell.gene_count; j++) {
                         gene_id = cell_exp_data[j].gene_id;
-                        if(gene_id_to_index_[gene_id]<0) continue;
+                        if (gene_id_to_index_[gene_id] < 0) continue;
                         indices[n] = gene_id_to_index_[gene_id];
                         count[n] = cell_exp_data[j].count;
                         n++;
                         g_count++;
                     }
-                    indptr[rows+1] = indptr[rows] + g_count;
+                    indptr[rows + 1] = indptr[rows] + g_count;
                     rows++;
                 }
                 assert(n == expression_num_current_);
                 free(cell_exp_data);
             } else {
                 auto *cell_exp_data = static_cast<CellExpData *>(malloc(expression_num_current_ * sizeof(CellExpData)));
-                CellData * cell_datas = getCell();
+                CellData *cell_datas = getCell();
                 for (unsigned int i = 0; i < cell_num_current_; i++) {
                     CellData cell = cell_datas[i];
                     selectCellExp(cell.offset, cell.gene_count, cell_exp_data);
@@ -360,13 +345,13 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
                     unsigned short gene_id, g_count = 0;
                     for (unsigned int j = 0; j < cell.gene_count; j++) {
                         gene_id = cell_exp_data[j].gene_id;
-                        if(gene_id_to_index_[gene_id]<0) continue;
+                        if (gene_id_to_index_[gene_id] < 0) continue;
                         indices[n] = gene_id_to_index_[gene_id];
                         count[n] = cell_exp_data[j].count;
                         n++;
                         g_count++;
                     }
-                    indptr[rows+1] = indptr[rows] + g_count;
+                    indptr[rows + 1] = indptr[rows] + g_count;
                     rows++;
                 }
                 assert(n == expression_num_current_);
@@ -417,23 +402,23 @@ int CgefReader::getSparseMatrixIndices2(unsigned int *cell_ind, unsigned int *ge
     return 0;
 }
 
-void CgefReader::getCellIdAndCount(unsigned int *cell_id, unsigned short *count) const{
+void CgefReader::getCellIdAndCount(unsigned int *cell_id, unsigned short *count) const {
     hid_t memtype = getMemtypeOfGeneExpData();
-    GeneExpData* gene_exp_data;
-    gene_exp_data = (GeneExpData*)malloc(expression_num_ * sizeof(GeneExpData));
+    GeneExpData *gene_exp_data;
+    gene_exp_data = (GeneExpData *)malloc(expression_num_ * sizeof(GeneExpData));
     H5Dread(gene_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_exp_data);
-    for(unsigned int i = 0; i < expression_num_; i++){
+    for (unsigned int i = 0; i < expression_num_; i++) {
         cell_id[i] = gene_exp_data->cell_id;
         count[i] = gene_exp_data->count;
     }
     free(gene_exp_data);
 }
 
-void CgefReader::getGeneIdAndCount(unsigned int *gene_id, unsigned short *count) const{
-    if(isOldCellExpVersion) {
+void CgefReader::getGeneIdAndCount(unsigned int *gene_id, unsigned short *count) const {
+    if (isOldCellExpVersion) {
         hid_t memtype = getMemtypeOfOlderCellExpData();
-        olderCellExpData* cell_exp_data;
-        cell_exp_data = (olderCellExpData*)malloc(expression_num_ * sizeof(olderCellExpData));
+        olderCellExpData *cell_exp_data;
+        cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
         H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
         for (unsigned long long i = 0; i < expression_num_; i++) {
             gene_id[i] = cell_exp_data->gene_id;
@@ -442,8 +427,8 @@ void CgefReader::getGeneIdAndCount(unsigned int *gene_id, unsigned short *count)
         free(cell_exp_data);
     } else {
         hid_t memtype = getMemtypeOfCellExpData();
-        CellExpData* cell_exp_data;
-        cell_exp_data = (CellExpData*)malloc(expression_num_ * sizeof(CellExpData));
+        CellExpData *cell_exp_data;
+        cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
         H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
         for (unsigned long long i = 0; i < expression_num_; i++) {
             gene_id[i] = cell_exp_data->gene_id;
@@ -466,12 +451,12 @@ unsigned int CgefReader::getExpressionCountByGene(string &gene_name, GeneExpData
 unsigned int CgefReader::getExpressionCountByGeneId(unsigned int gene_id, GeneExpData *expressions) {
     unsigned int cell_count = gene_array_[gene_id].cell_count;
     selectGeneExp(gene_array_[gene_id].offset, cell_count, expressions);
-    if(restrict_region_){
+    if (restrict_region_) {
         unsigned int offset_cell_id, new_cell_count = 0;
-        for(unsigned int i = 0; i < cell_count; i++){
-            if(isInRegion(expressions[i].cell_id)){
+        for (unsigned int i = 0; i < cell_count; i++) {
+            if (isInRegion(expressions[i].cell_id)) {
                 memmove(&expressions[new_cell_count], &expressions[i], sizeof(GeneExpData));
-                new_cell_count ++;
+                new_cell_count++;
             }
         }
         memset(&expressions[new_cell_count], 0, sizeof(GeneExpData));  // TODO
@@ -480,12 +465,10 @@ unsigned int CgefReader::getExpressionCountByGeneId(unsigned int gene_id, GeneEx
     return cell_count;
 }
 
-GeneData CgefReader::getGeneDataByGeneId(unsigned int gene_id) {
-    return gene_array_[gene_id];
-}
+GeneData CgefReader::getGeneDataByGeneId(unsigned int gene_id) { return gene_array_[gene_id]; }
 
 CellData CgefReader::getCell(unsigned int cell_id) const {
-    CellData cell_data{};
+    CellData cell_data {};
     selectCells(cell_id, 1, &cell_data);
     return cell_data;
 }
@@ -497,13 +480,9 @@ CellData *CgefReader::getCell() {
     return loadCell();
 }
 
-string CgefReader::getGeneName(unsigned int gene_id) {
-    return gene_array_[gene_id].gene_name;
-}
+string CgefReader::getGeneName(unsigned int gene_id) { return gene_array_[gene_id].gene_name; }
 
-GeneData CgefReader::getGene(unsigned int gene_id) const {
-    return gene_array_[gene_id];
-}
+GeneData CgefReader::getGene(unsigned int gene_id) const { return gene_array_[gene_id]; }
 
 GeneData *CgefReader::getGene() {
     if (gene_array_current_ != nullptr) {
@@ -512,7 +491,7 @@ GeneData *CgefReader::getGene() {
         gene_array_current_ = static_cast<GeneData *>(malloc(gene_num_current_ * sizeof(GeneData)));
         int i = 0;
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            if(gene_id_to_index_[gene_id]<0) continue;
+            if (gene_id_to_index_[gene_id] < 0) continue;
             memcpy(&gene_array_current_[i], &gene_array_[gene_id], sizeof(GeneData));
             i++;
         }
@@ -530,7 +509,8 @@ int CgefReader::getGeneId(string &gene_name) {
     return -1;
 }
 
-// unsigned int CgefReader::toGem(string &filename, const vector<string> &gene_name_list, bool force_genes, bool exclude) {
+// unsigned int CgefReader::toGem(string &filename, const vector<string> &gene_name_list, bool force_genes, bool
+// exclude) {
 //     unsigned long cprev = clock();
 //     unsigned short gene_ids[gene_num_];
 //     unsigned short n = 0;
@@ -635,20 +615,12 @@ int CgefReader::getGeneId(string &gene_name) {
 //     return cell_num;
 // }
 
-bool CgefReader::isVerbose() const {
-    return verbose_;
-}
+bool CgefReader::isVerbose() const { return verbose_; }
 
-void CgefReader::setVerbose(bool verbose) {
-    verbose_ = verbose;
-}
+void CgefReader::setVerbose(bool verbose) { verbose_ = verbose; }
 
-void CgefReader::selectCells(unsigned int offset,
-                             unsigned int cell_count,
-                             CellData *cell) const {
-    hsize_t start[1] = {offset},
-            count[1] = {cell_count},
-            offset_out[1] = {0};
+void CgefReader::selectCells(unsigned int offset, unsigned int cell_count, CellData *cell) const {
+    hsize_t start[1] = {offset}, count[1] = {cell_count}, offset_out[1] = {0};
 
     hid_t memtype;
     memtype = getMemtypeOfCellData();
@@ -661,12 +633,8 @@ void CgefReader::selectCells(unsigned int offset,
     H5Dread(cell_dataset_id_, memtype, memspace, cell_dataspace_id_, H5P_DEFAULT, cell);
 }
 
-void CgefReader::selectCellExp(unsigned int offset,
-                               unsigned int gene_count,
-                               CellExpData *cell_exp_data) const {
-    hsize_t start[1] = {offset},
-            count[1] = {gene_count},
-            offset_out[1] = {0};
+void CgefReader::selectCellExp(unsigned int offset, unsigned int gene_count, CellExpData *cell_exp_data) const {
+    hsize_t start[1] = {offset}, count[1] = {gene_count}, offset_out[1] = {0};
 
     hid_t memtype;
     memtype = getMemtypeOfCellExpData();
@@ -679,12 +647,9 @@ void CgefReader::selectCellExp(unsigned int offset,
     H5Dread(cell_exp_dataset_id_, memtype, memspace, cell_exp_dataspace_id_, H5P_DEFAULT, cell_exp_data);
 }
 
-void CgefReader::selectOlderCellExp(unsigned int offset,
-                               unsigned int gene_count,
-                               olderCellExpData *cell_exp_data) const {
-    hsize_t start[1] = {offset},
-            count[1] = {gene_count},
-            offset_out[1] = {0};
+void CgefReader::selectOlderCellExp(unsigned int offset, unsigned int gene_count,
+                                    olderCellExpData *cell_exp_data) const {
+    hsize_t start[1] = {offset}, count[1] = {gene_count}, offset_out[1] = {0};
 
     hid_t memtype = getMemtypeOfOlderCellExpData();
 
@@ -696,12 +661,8 @@ void CgefReader::selectOlderCellExp(unsigned int offset,
     H5Dread(cell_exp_dataset_id_, memtype, memspace, cell_exp_dataspace_id_, H5P_DEFAULT, cell_exp_data);
 }
 
-void CgefReader::selectGeneExp(unsigned int offset,
-                               unsigned int cell_count,
-                               GeneExpData *gene_exp_data) const {
-    hsize_t start[1] = {offset},
-            count[1] = {cell_count},
-            offset_out[1] = {0};
+void CgefReader::selectGeneExp(unsigned int offset, unsigned int cell_count, GeneExpData *gene_exp_data) const {
+    hsize_t start[1] = {offset}, count[1] = {cell_count}, offset_out[1] = {0};
 
     hid_t memtype = getMemtypeOfGeneExpData();
 
@@ -712,20 +673,16 @@ void CgefReader::selectGeneExp(unsigned int offset,
     H5Dread(gene_exp_dataset_id_, memtype, memspace, gene_exp_dataspace_id_, H5P_DEFAULT, gene_exp_data);
 }
 
-bool CgefReader::isRestrictRegion() const {
-    return restrict_region_;
-}
+bool CgefReader::isRestrictRegion() const { return restrict_region_; }
 
-bool CgefReader::isRestrictGene() const {
-    return restrict_gene_;
-}
+bool CgefReader::isRestrictGene() const { return restrict_gene_; }
 
 void CgefReader::restrictRegion(unsigned int min_x, unsigned int max_x, unsigned int min_y, unsigned int max_y) {
     unsigned long cprev = clock();
     if (restrict_gene_ || restrict_region_) {
         cerr << "Please call freeRestriction first, or call restrictRegion function before restrictGene." << endl;
-        reportErrorCode2File(errorCode::E_STEPERROR, 
-        "Please call freeRestriction first, or call restrictRegion function before restrictGene.");
+        reportErrorCode2File(errorCode::E_STEPERROR,
+                             "Please call freeRestriction first, or call restrictRegion function before restrictGene.");
         exit(2);
     }
 
@@ -746,8 +703,8 @@ void CgefReader::restrictRegion(unsigned int min_x, unsigned int max_x, unsigned
         cell_num_tmp += block_index_[max_block_x + block_id_y + 1] - block_index_[min_block_x + block_id_y];
     }
 
-    start_cell_id = block_index_[min_block_x+min_block_y*x_block_num];
-    end_cell_id = block_index_[max_block_x+max_block_y*x_block_num + 1];
+    start_cell_id = block_index_[min_block_x + min_block_y * x_block_num];
+    end_cell_id = block_index_[max_block_x + max_block_y * x_block_num + 1];
 
     // support rerun this method
     cell_num_current_ = 0;
@@ -767,12 +724,11 @@ void CgefReader::restrictRegion(unsigned int min_x, unsigned int max_x, unsigned
         unsigned int start = cell_num_current_;
         for (unsigned int j = 0; j < cell_num_tmp; j++) {
             CellData cell = cell_array_current_[start + j];
-            if (cell.x < min_x || cell.x > max_x || cell.y < min_y || cell.y > max_y)
-                continue;
+            if (cell.x < min_x || cell.x > max_x || cell.y < min_y || cell.y > max_y) continue;
             memmove(&(cell_array_current_[cell_num_current_]), &cell, sizeof(CellData));
             cell_id_tmp = offset + j;
             cell_id_array_current_[cell_num_current_] = cell_id_tmp;
-            cell_id_to_index_[cell_id_tmp-start_cell_id] = static_cast<int>(cell_num_current_);
+            cell_id_to_index_[cell_id_tmp - start_cell_id] = static_cast<int>(cell_num_current_);
             cell_num_current_++;
             expression_num_current_ += cell.gene_count;
         }
@@ -783,18 +739,18 @@ void CgefReader::restrictRegion(unsigned int min_x, unsigned int max_x, unsigned
 
 void CgefReader::restrictGene(vector<string> &gene_list, bool exclude) {
     restrict_gene_ = true;
-    auto *gene_id_bool_tmp = static_cast<bool*>(malloc(gene_num_ * sizeof(bool)));
+    auto *gene_id_bool_tmp = static_cast<bool *>(malloc(gene_num_ * sizeof(bool)));
     memset(gene_id_bool_tmp, exclude, gene_num_ * sizeof(bool));
-    for (const auto &gene_name: gene_list) {
+    for (const auto &gene_name : gene_list) {
         if (genename_to_id_.find(gene_name) != genename_to_id_.end()) {
-            gene_id_bool_tmp[genename_to_id_[gene_name]]  = !exclude;
+            gene_id_bool_tmp[genename_to_id_[gene_name]] = !exclude;
         }
     }
 
     unsigned int new_gene_num_current = 0;
-    for(unsigned int i = 0; i < gene_num_; i++){
-        if(!gene_id_bool_tmp[i]) gene_id_to_index_[i] = -1;
-        if(gene_id_to_index_[i]>=0) {
+    for (unsigned int i = 0; i < gene_num_; i++) {
+        if (!gene_id_bool_tmp[i]) gene_id_to_index_[i] = -1;
+        if (gene_id_to_index_[i] >= 0) {
             gene_id_to_index_[i] = new_gene_num_current;
             new_gene_num_current++;
         }
@@ -804,10 +760,9 @@ void CgefReader::restrictGene(vector<string> &gene_list, bool exclude) {
 }
 
 void CgefReader::updateGeneInfo() {
-    if (isOldCellExpVersion)
-    {
+    if (isOldCellExpVersion) {
         auto *cell_exp_data = static_cast<olderCellExpData *>(malloc(gene_num_ * sizeof(olderCellExpData)));
-        auto *gene_id_bool_tmp = static_cast<bool*>(calloc(gene_num_, sizeof(bool)));
+        auto *gene_id_bool_tmp = static_cast<bool *>(calloc(gene_num_, sizeof(bool)));
         for (unsigned int i = 0; i < cell_num_current_; i++) {
             CellData cell = cell_array_current_[i];
             selectOlderCellExp(cell.offset, cell.gene_count, cell_exp_data);
@@ -817,9 +772,9 @@ void CgefReader::updateGeneInfo() {
         }
 
         unsigned int new_gene_num_current = 0;
-        for(unsigned int i = 0; i < gene_num_; i++){
-            if(!gene_id_bool_tmp[i]) gene_id_to_index_[i] = -1;
-            if(gene_id_to_index_[i]>=0) {
+        for (unsigned int i = 0; i < gene_num_; i++) {
+            if (!gene_id_bool_tmp[i]) gene_id_to_index_[i] = -1;
+            if (gene_id_to_index_[i] >= 0) {
                 gene_id_to_index_[i] = new_gene_num_current;
                 new_gene_num_current++;
             }
@@ -830,7 +785,7 @@ void CgefReader::updateGeneInfo() {
         free(gene_id_bool_tmp);
     } else {
         auto *cell_exp_data = static_cast<CellExpData *>(malloc(gene_num_ * sizeof(CellExpData)));
-        auto *gene_id_bool_tmp = static_cast<bool*>(calloc(gene_num_, sizeof(bool)));
+        auto *gene_id_bool_tmp = static_cast<bool *>(calloc(gene_num_, sizeof(bool)));
         for (unsigned int i = 0; i < cell_num_current_; i++) {
             CellData cell = cell_array_current_[i];
             selectCellExp(cell.offset, cell.gene_count, cell_exp_data);
@@ -840,9 +795,9 @@ void CgefReader::updateGeneInfo() {
         }
 
         unsigned int new_gene_num_current = 0;
-        for(unsigned int i = 0; i < gene_num_; i++){
-            if(!gene_id_bool_tmp[i]) gene_id_to_index_[i] = -1;
-            if(gene_id_to_index_[i]>=0) {
+        for (unsigned int i = 0; i < gene_num_; i++) {
+            if (!gene_id_bool_tmp[i]) gene_id_to_index_[i] = -1;
+            if (gene_id_to_index_[i] >= 0) {
                 gene_id_to_index_[i] = new_gene_num_current;
                 new_gene_num_current++;
             }
@@ -856,20 +811,17 @@ void CgefReader::updateGeneInfo() {
 
 unsigned int CgefReader::getCellCount(string &gene_name) {
     auto iter = genename_to_id_.find(gene_name);
-    if (iter == genename_to_id_.end())
-        return 0;
+    if (iter == genename_to_id_.end()) return 0;
     return gene_array_[iter->second].cell_count;
 }
 
 unsigned int CgefReader::getCellCount(unsigned int gene_id) {
-    if (gene_id >= gene_num_)
-        return 0;
+    if (gene_id >= gene_num_) return 0;
     return gene_array_[gene_id].cell_count;
 }
 
 unsigned short CgefReader::getGeneCount(unsigned int cell_id) const {
-    if (cell_id >= cell_num_)
-        return 0;
+    if (cell_id >= cell_num_) return 0;
     return getCell(cell_id).gene_count;
 }
 
@@ -888,59 +840,53 @@ void CgefReader::freeRestriction() {
         free(cell_id_to_index_);
         cell_id_to_index_ = nullptr;
     }
-    iota(&gene_id_to_index_[0], gene_id_to_index_+gene_num_, 0);
+    iota(&gene_id_to_index_[0], gene_id_to_index_ + gene_num_, 0);
     cell_num_current_ = cell_num_;
     gene_num_current_ = gene_num_;
     expression_num_current_ = expression_num_;
 }
 
 bool CgefReader::isInRegion(unsigned int cell_id) {
-    if(cell_id < start_cell_id || cell_id >= end_cell_id || cell_id_to_index_[cell_id-start_cell_id] < 0)
+    if (cell_id < start_cell_id || cell_id >= end_cell_id || cell_id_to_index_[cell_id - start_cell_id] < 0)
         return false;
     return true;
 }
 
-
-void CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &border, vector<short> &borcnt)
-{
+void CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &border, vector<short> &borcnt) {
     unsigned long cprev = clock();
-    if(m_borderdataPtr_s == nullptr)
-    {
+    if (m_borderdataPtr_s == nullptr) {
         hsize_t dims[1];
         hid_t dataset_id = H5Dopen(group_id_, "cellBorder", H5P_DEFAULT);
         hid_t dataspace_id = H5Dget_space(dataset_id);
         H5Sget_simple_extent_dims(dataspace_id, dims, nullptr);
         m_bordercnt = dims[0];
-        m_borderdataPtr_s = (short*)calloc(dims[0], 2);
+        m_borderdataPtr_s = (short *)calloc(dims[0], 2);
         H5Dread(dataset_id, H5T_NATIVE_SHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_borderdataPtr_s);
 
         H5Sclose(dataspace_id);
         H5Dclose(dataset_id);
 
         hid_t d_id = H5Dopen(group_id_, "cellBordercnt", H5P_DEFAULT);
-        m_pborcnt = (short*)calloc(cell_num_, 2);
+        m_pborcnt = (short *)calloc(cell_num_, 2);
         H5Dread(d_id, H5T_NATIVE_SHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_pborcnt);
         H5Dclose(d_id);
     }
 
-    vector<short> tmp(m_borderdataPtr_s, m_borderdataPtr_s+m_bordercnt);
+    vector<short> tmp(m_borderdataPtr_s, m_borderdataPtr_s + m_bordercnt);
     border.swap(tmp);
-    vector<short> tmpcnt(m_pborcnt, m_pborcnt+cell_num_);
+    vector<short> tmpcnt(m_pborcnt, m_pborcnt + cell_num_);
     borcnt.swap(tmpcnt);
-
 }
 
-int CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &border)
-{
+int CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &border) {
     unsigned long cprev = clock();
-    if(m_borderdataPtr_s == nullptr)
-    {
+    if (m_borderdataPtr_s == nullptr) {
         hsize_t dims[3];
         hid_t dataset_id = H5Dopen(group_id_, "cellBorder", H5P_DEFAULT);
         hid_t dataspace_id = H5Dget_space(dataset_id);
         H5Sget_simple_extent_dims(dataspace_id, dims, nullptr);
 
-        m_borderdataPtr_s = (short*)calloc(dims[0]*dims[1]*dims[2], 2);
+        m_borderdataPtr_s = (short *)calloc(dims[0] * dims[1] * dims[2], 2);
         H5Dread(dataset_id, H5T_NATIVE_SHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_borderdataPtr_s);
 
         H5Sclose(dataspace_id);
@@ -948,20 +894,15 @@ int CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &bo
         m_bordercnt = dims[1];
     }
 
-    int cnt = 2*m_bordercnt;
-    if(cell_ind.empty())
-    {
-        uint32_t total = cell_num_*m_bordercnt*2;
-        vector<short> tmp(m_borderdataPtr_s, m_borderdataPtr_s+total);
+    int cnt = 2 * m_bordercnt;
+    if (cell_ind.empty()) {
+        uint32_t total = cell_num_ * m_bordercnt * 2;
+        vector<short> tmp(m_borderdataPtr_s, m_borderdataPtr_s + total);
         border.swap(tmp);
-    }
-    else
-    {
-        for(uint32_t cid : cell_ind)
-        {
-            short *psrc = m_borderdataPtr_s + cid*cnt;
-            for(int i=0;i<cnt;i++)
-            {
+    } else {
+        for (uint32_t cid : cell_ind) {
+            short *psrc = m_borderdataPtr_s + cid * cnt;
+            for (int i = 0; i < cnt; i++) {
                 border.push_back(psrc[i]);
             }
         }
@@ -969,13 +910,11 @@ int CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &bo
     return cnt;
 }
 
-void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
-                vector<string> &vec_gene, vector<unsigned long long> &uniq_cells,
-                vector<unsigned int> &cell_ind, vector<unsigned int> &gene_ind, vector<unsigned int> &count)
-{
+void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
+                                 vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
+                                 vector<unsigned int> &gene_ind, vector<unsigned int> &count) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
-    if(!region.empty())
-    {
+    if (!region.empty()) {
         min_x = region[0];
         max_x = region[1];
         min_y = region[2];
@@ -985,35 +924,28 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
     CellData *cdata = loadCell();
     GeneData *gdata = loadGene();
 
-    if(genelist.empty()&& (!region.empty()))
-    {
+    if (genelist.empty() && (!region.empty())) {
         if (isOldCellExpVersion) {
             hid_t memtype = getMemtypeOfOlderCellExpData();
-            olderCellExpData* cell_exp_data = (olderCellExpData*)malloc(expression_num_ * sizeof(olderCellExpData));
+            olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
             unsigned long long uniq_cell_id;
             uint32_t gid = 0, cid = 0;
-            map<uint32_t, uint32_t> gidmap;//新旧gid对照
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
-                if(cdata[i].x < min_x || cdata[i].x >= max_x || 
-                   cdata[i].y < min_y || cdata[i].y >= max_y){
+            map<uint32_t, uint32_t> gidmap;  // 新旧gid对照
+            for (uint32_t i = 0; i < cell_num_; i++) {
+                if (cdata[i].x < min_x || cdata[i].x >= max_x || cdata[i].y < min_y || cdata[i].y >= max_y) {
                     continue;
                 }
 
                 olderCellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
-                    if(gidmap.find((uint32_t)cptr[j].gene_id) == gidmap.end())
-                    {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
+                    if (gidmap.find((uint32_t)cptr[j].gene_id) == gidmap.end()) {
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
                         gidmap.emplace((uint32_t)cptr[j].gene_id, gid++);
-                    }
-                    else
-                    {
+                    } else {
                         gene_ind.push_back(gidmap[(uint32_t)cptr[j].gene_id]);
                     }
 
@@ -1028,34 +960,28 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
             free(cell_exp_data);
         } else {
             hid_t memtype = getMemtypeOfCellExpData();
-            CellExpData* cell_exp_data = (CellExpData*)malloc(expression_num_ * sizeof(CellExpData));
+            CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
-    
+
             unsigned long long uniq_cell_id;
             uint32_t gid = 0, cid = 0;
-            map<uint32_t, uint32_t> gidmap;//新旧gid对照
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
-                if(cdata[i].x < min_x || cdata[i].x >= max_x || 
-                   cdata[i].y < min_y || cdata[i].y >= max_y){
+            map<uint32_t, uint32_t> gidmap;  // 新旧gid对照
+            for (uint32_t i = 0; i < cell_num_; i++) {
+                if (cdata[i].x < min_x || cdata[i].x >= max_x || cdata[i].y < min_y || cdata[i].y >= max_y) {
                     continue;
                 }
-    
+
                 CellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
-                    if(gidmap.find(cptr[j].gene_id) == gidmap.end())
-                    {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
+                    if (gidmap.find(cptr[j].gene_id) == gidmap.end()) {
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
                         gidmap.emplace(cptr[j].gene_id, gid++);
-                    }
-                    else
-                    {
+                    } else {
                         gene_ind.push_back(gidmap[cptr[j].gene_id]);
                     }
-                    
+
                     count.push_back(cptr[j].count);
                     cell_ind.push_back(cid);
                 }
@@ -1066,43 +992,34 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
             }
             free(cell_exp_data);
         }
-    }
-    else if(region.empty() && (!genelist.empty()))
-    {
+    } else if (region.empty() && (!genelist.empty())) {
         set<string> gset;
-        for(string &str : genelist)
-        {
+        for (string &str : genelist) {
             gset.insert(str);
         }
         hid_t memtype = getMemtypeOfGeneExpData();
-        GeneExpData* gene_exp_data = (GeneExpData*)malloc(expression_num_ * sizeof(GeneExpData));
+        GeneExpData *gene_exp_data = (GeneExpData *)malloc(expression_num_ * sizeof(GeneExpData));
         H5Dread(gene_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_exp_data);
 
         unsigned long long uniq_cell_id;
         uint32_t gid = 0, cid = 0, oldcid = 0;
-        map<uint32_t, uint32_t> cidmap;//新旧cid对照
+        map<uint32_t, uint32_t> cidmap;  // 新旧cid对照
 
-        for(unsigned int gene_id = 0; gene_id < gene_num_; gene_id++)
-        {
+        for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
             string str(gdata[gene_id].gene_name);
-            if(gset.find(str) != gset.end())
-            {
+            if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
-                for(uint32_t j = 0;j<gdata[gene_id].cell_count;j++)
-                {
+                for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
                     oldcid = gptr[j].cell_id;
-                    if(cidmap.find(oldcid) == cidmap.end())
-                    {
+                    if (cidmap.find(oldcid) == cidmap.end()) {
                         cell_ind.push_back(cid);
                         cidmap.emplace(oldcid, cid++);
 
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
-                    }
-                    else
-                    {
+                    } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
 
@@ -1114,52 +1031,41 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
         }
 
         free(gene_exp_data);
-    }
-    else if((!region.empty()) && (!genelist.empty()))
-    {
+    } else if ((!region.empty()) && (!genelist.empty())) {
         set<string> gset;
-        for(string &str : genelist)
-        {
+        for (string &str : genelist) {
             gset.insert(str);
         }
         hid_t memtype = getMemtypeOfGeneExpData();
-        GeneExpData* gene_exp_data = (GeneExpData*)malloc(expression_num_ * sizeof(GeneExpData));
+        GeneExpData *gene_exp_data = (GeneExpData *)malloc(expression_num_ * sizeof(GeneExpData));
         H5Dread(gene_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_exp_data);
 
         unsigned long long uniq_cell_id;
         uint32_t gid = 0, cid = 0, oldcid = 0;
-        map<uint32_t, uint32_t> cidmap;//新旧cid对照
-        for(unsigned int gene_id = 0; gene_id < gene_num_; gene_id++)
-        {
+        map<uint32_t, uint32_t> cidmap;  // 新旧cid对照
+        for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
             string str(gdata[gene_id].gene_name);
-            if(gset.find(str) != gset.end())
-            {
+            if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
-                for(uint32_t j=0;j<gdata[gene_id].cell_count;j++)
-                {
+                for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
                     oldcid = gptr[j].cell_id;
-                    if(cdata[oldcid].x < min_x || cdata[oldcid].x >= max_x || 
-                        cdata[oldcid].y < min_y || cdata[oldcid].y >= max_y)
-                    {
+                    if (cdata[oldcid].x < min_x || cdata[oldcid].x >= max_x || cdata[oldcid].y < min_y ||
+                        cdata[oldcid].y >= max_y) {
                         continue;
                     }
 
-                    if(cidmap.find(oldcid) == cidmap.end())
-                    {
+                    if (cidmap.find(oldcid) == cidmap.end()) {
                         cell_ind.push_back(cid);
                         cidmap.emplace(oldcid, cid++);
 
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
-                    }
-                    else
-                    {
+                    } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
 
-                    
                     count.push_back(gptr[j].count);
                     gene_ind.push_back(gid);
                 }
@@ -1167,25 +1073,20 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
             }
         }
         free(gene_exp_data);
-    }
-    else if(region.empty() && genelist.empty())
-    {
+    } else if (region.empty() && genelist.empty()) {
         if (isOldCellExpVersion) {
             hid_t memtype = getMemtypeOfOlderCellExpData();
-            olderCellExpData* cell_exp_data = (olderCellExpData*)malloc(expression_num_ * sizeof(olderCellExpData));
+            olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
-            for(uint32_t i=0;i<gene_num_;i++)
-            {
+            for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
             }
 
             unsigned long long uniq_cell_id;
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
+            for (uint32_t i = 0; i < cell_num_; i++) {
                 olderCellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
                     gene_ind.push_back(cptr[j].gene_id);
                     count.push_back(cptr[j].count);
                     cell_ind.push_back(i);
@@ -1197,20 +1098,17 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
             free(cell_exp_data);
         } else {
             hid_t memtype = getMemtypeOfCellExpData();
-            CellExpData* cell_exp_data = (CellExpData*)malloc(expression_num_ * sizeof(CellExpData));
+            CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
-            for(uint32_t i=0;i<gene_num_;i++)
-            {
+            for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
             }
 
             unsigned long long uniq_cell_id;
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
+            for (uint32_t i = 0; i < cell_num_; i++) {
                 CellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
                     gene_ind.push_back(cptr[j].gene_id);
                     count.push_back(cptr[j].count);
                     cell_ind.push_back(i);
@@ -1224,15 +1122,12 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist,
     }
 }
 
-
-void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genelist,
-                vector<string> &vec_gene, vector<unsigned long long> &uniq_cells,
-                vector<unsigned int> &cell_ind, vector<unsigned int> &gene_ind, 
-                vector<unsigned int> &count, vector<unsigned int> &exon)
-{
+void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
+                                      vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
+                                      vector<unsigned int> &gene_ind, vector<unsigned int> &count,
+                                      vector<unsigned int> &exon) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
-    if(!region.empty())
-    {
+    if (!region.empty()) {
         min_x = region[0];
         max_x = region[1];
         min_y = region[2];
@@ -1242,41 +1137,34 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
     CellData *cdata = loadCell();
     GeneData *gdata = loadGene();
 
-    if(genelist.empty()&& (!region.empty()))
-    {
+    if (genelist.empty() && (!region.empty())) {
         if (isOldCellExpVersion) {
             hid_t memtype = getMemtypeOfOlderCellExpData();
-            olderCellExpData* cell_exp_data = (olderCellExpData*)malloc(expression_num_ * sizeof(olderCellExpData));
+            olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
-            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2*expression_num_);
+            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2 * expression_num_);
             hid_t did = H5Dopen(group_id_, "cellExpExon", H5P_DEFAULT);
             H5Dread(did, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, pcell_exp_exon);
             H5Dclose(did);
 
             unsigned long long uniq_cell_id;
             uint32_t gid = 0, cid = 0;
-            map<uint32_t, uint32_t> gidmap;//新旧gid对照
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
-                if(cdata[i].x < min_x || cdata[i].x >= max_x || 
-                   cdata[i].y < min_y || cdata[i].y >= max_y){
+            map<uint32_t, uint32_t> gidmap;  // 新旧gid对照
+            for (uint32_t i = 0; i < cell_num_; i++) {
+                if (cdata[i].x < min_x || cdata[i].x >= max_x || cdata[i].y < min_y || cdata[i].y >= max_y) {
                     continue;
                 }
 
                 uint16_t *pexon = pcell_exp_exon + cdata[i].offset;
                 olderCellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
-                    if(gidmap.find(cptr[j].gene_id) == gidmap.end())
-                    {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
+                    if (gidmap.find(cptr[j].gene_id) == gidmap.end()) {
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
                         gidmap.emplace(cptr[j].gene_id, gid++);
-                    }
-                    else
-                    {
+                    } else {
                         gene_ind.push_back(gidmap[cptr[j].gene_id]);
                     }
 
@@ -1293,37 +1181,31 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             free(pcell_exp_exon);
         } else {
             hid_t memtype = getMemtypeOfCellExpData();
-            CellExpData* cell_exp_data = (CellExpData*)malloc(expression_num_ * sizeof(CellExpData));
+            CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
-            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2*expression_num_);
+            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2 * expression_num_);
             hid_t did = H5Dopen(group_id_, "cellExpExon", H5P_DEFAULT);
             H5Dread(did, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, pcell_exp_exon);
             H5Dclose(did);
 
             unsigned long long uniq_cell_id;
             uint32_t gid = 0, cid = 0;
-            map<uint32_t, uint32_t> gidmap;//新旧gid对照
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
-                if(cdata[i].x < min_x || cdata[i].x >= max_x || 
-                   cdata[i].y < min_y || cdata[i].y >= max_y){
+            map<uint32_t, uint32_t> gidmap;  // 新旧gid对照
+            for (uint32_t i = 0; i < cell_num_; i++) {
+                if (cdata[i].x < min_x || cdata[i].x >= max_x || cdata[i].y < min_y || cdata[i].y >= max_y) {
                     continue;
                 }
 
                 uint16_t *pexon = pcell_exp_exon + cdata[i].offset;
                 CellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
-                    if(gidmap.find(cptr[j].gene_id) == gidmap.end())
-                    {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
+                    if (gidmap.find(cptr[j].gene_id) == gidmap.end()) {
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
                         gidmap.emplace(cptr[j].gene_id, gid++);
-                    }
-                    else
-                    {
+                    } else {
                         gene_ind.push_back(gidmap[cptr[j].gene_id]);
                     }
 
@@ -1340,49 +1222,40 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             free(pcell_exp_exon);
         }
 
-    }
-    else if(region.empty() && (!genelist.empty()))
-    {
+    } else if (region.empty() && (!genelist.empty())) {
         set<string> gset;
-        for(string &str : genelist)
-        {
+        for (string &str : genelist) {
             gset.insert(str);
         }
         hid_t memtype = getMemtypeOfGeneExpData();
-        GeneExpData* gene_exp_data = (GeneExpData*)malloc(expression_num_ * sizeof(GeneExpData));
+        GeneExpData *gene_exp_data = (GeneExpData *)malloc(expression_num_ * sizeof(GeneExpData));
         H5Dread(gene_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_exp_data);
 
-        uint16_t *pgene_exp_exon = (uint16_t *)malloc(2*expression_num_);
+        uint16_t *pgene_exp_exon = (uint16_t *)malloc(2 * expression_num_);
         hid_t did = H5Dopen(group_id_, "geneExpExon", H5P_DEFAULT);
         H5Dread(did, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, pgene_exp_exon);
         H5Dclose(did);
 
         unsigned long long uniq_cell_id;
         uint32_t gid = 0, cid = 0, oldcid = 0;
-        map<uint32_t, uint32_t> cidmap;//新旧cid对照
+        map<uint32_t, uint32_t> cidmap;  // 新旧cid对照
 
-        for(unsigned int gene_id = 0; gene_id < gene_num_; gene_id++)
-        {
+        for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
             string str(gdata[gene_id].gene_name);
-            if(gset.find(str) != gset.end())
-            {
+            if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
                 uint16_t *pexon = pgene_exp_exon + gdata[gene_id].offset;
-                for(uint32_t j = 0;j<gdata[gene_id].cell_count;j++)
-                {
+                for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
                     oldcid = gptr[j].cell_id;
-                    if(cidmap.find(oldcid) == cidmap.end())
-                    {
+                    if (cidmap.find(oldcid) == cidmap.end()) {
                         cell_ind.push_back(cid);
                         cidmap.emplace(oldcid, cid++);
 
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
-                    }
-                    else
-                    {
+                    } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
 
@@ -1396,54 +1269,44 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
 
         free(gene_exp_data);
         free(pgene_exp_exon);
-    }
-    else if((!region.empty()) && (!genelist.empty()))
-    {
+    } else if ((!region.empty()) && (!genelist.empty())) {
         set<string> gset;
-        for(string &str : genelist)
-        {
+        for (string &str : genelist) {
             gset.insert(str);
         }
         hid_t memtype = getMemtypeOfGeneExpData();
-        GeneExpData* gene_exp_data = (GeneExpData*)malloc(expression_num_ * sizeof(GeneExpData));
+        GeneExpData *gene_exp_data = (GeneExpData *)malloc(expression_num_ * sizeof(GeneExpData));
         H5Dread(gene_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_exp_data);
 
-        uint16_t *pgene_exp_exon = (uint16_t *)malloc(2*expression_num_);
+        uint16_t *pgene_exp_exon = (uint16_t *)malloc(2 * expression_num_);
         hid_t did = H5Dopen(group_id_, "geneExpExon", H5P_DEFAULT);
         H5Dread(did, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, pgene_exp_exon);
         H5Dclose(did);
 
         unsigned long long uniq_cell_id;
         uint32_t gid = 0, cid = 0, oldcid = 0;
-        map<uint32_t, uint32_t> cidmap;//新旧cid对照
-        for(unsigned int gene_id = 0; gene_id < gene_num_; gene_id++)
-        {
+        map<uint32_t, uint32_t> cidmap;  // 新旧cid对照
+        for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
             string str(gdata[gene_id].gene_name);
-            if(gset.find(str) != gset.end())
-            {
+            if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
                 uint16_t *pexon = pgene_exp_exon + gdata[gene_id].offset;
-                for(uint32_t j=0;j<gdata[gene_id].cell_count;j++)
-                {
+                for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
                     oldcid = gptr[j].cell_id;
-                    if(cdata[oldcid].x < min_x || cdata[oldcid].x >= max_x || 
-                        cdata[oldcid].y < min_y || cdata[oldcid].y >= max_y)
-                    {
+                    if (cdata[oldcid].x < min_x || cdata[oldcid].x >= max_x || cdata[oldcid].y < min_y ||
+                        cdata[oldcid].y >= max_y) {
                         continue;
                     }
 
-                    if(cidmap.find(oldcid) == cidmap.end())
-                    {
+                    if (cidmap.find(oldcid) == cidmap.end()) {
                         cell_ind.push_back(cid);
                         cidmap.emplace(oldcid, cid++);
 
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
-                    }
-                    else
-                    {
+                    } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
 
@@ -1456,30 +1319,25 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
         }
         free(gene_exp_data);
         free(pgene_exp_exon);
-    }
-    else if(region.empty() && genelist.empty())
-    {
+    } else if (region.empty() && genelist.empty()) {
         if (isOldCellExpVersion) {
             hid_t memtype = getMemtypeOfOlderCellExpData();
-            olderCellExpData* cell_exp_data = (olderCellExpData*)malloc(expression_num_ * sizeof(olderCellExpData));
+            olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
-    
-            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2*expression_num_);
+
+            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2 * expression_num_);
             hid_t did = H5Dopen(group_id_, "cellExpExon", H5P_DEFAULT);
             H5Dread(did, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, pcell_exp_exon);
             H5Dclose(did);
-    
-            for(uint32_t i=0;i<gene_num_;i++)
-            {
+
+            for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
             }
-            
+
             unsigned long long uniq_cell_id;
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
+            for (uint32_t i = 0; i < cell_num_; i++) {
                 olderCellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
                     gene_ind.push_back(cptr[j].gene_id);
                     count.push_back(cptr[j].count);
                     exon.push_back(pcell_exp_exon[j]);
@@ -1493,25 +1351,22 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             free(pcell_exp_exon);
         } else {
             hid_t memtype = getMemtypeOfCellExpData();
-            CellExpData* cell_exp_data = (CellExpData*)malloc(expression_num_ * sizeof(CellExpData));
+            CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
-            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2*expression_num_);
+            uint16_t *pcell_exp_exon = (uint16_t *)malloc(2 * expression_num_);
             hid_t did = H5Dopen(group_id_, "cellExpExon", H5P_DEFAULT);
             H5Dread(did, H5T_NATIVE_USHORT, H5S_ALL, H5S_ALL, H5P_DEFAULT, pcell_exp_exon);
             H5Dclose(did);
 
-            for(uint32_t i=0;i<gene_num_;i++)
-            {
+            for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
             }
 
             unsigned long long uniq_cell_id;
-            for(uint32_t i=0;i<cell_num_;i++)
-            {
+            for (uint32_t i = 0; i < cell_num_; i++) {
                 CellExpData *cptr = cell_exp_data + cdata[i].offset;
-                for(uint32_t j = 0;j<cdata[i].gene_count;j++)
-                {
+                for (uint32_t j = 0; j < cdata[i].gene_count; j++) {
                     gene_ind.push_back(cptr[j].gene_id);
                     count.push_back(cptr[j].count);
                     exon.push_back(pcell_exp_exon[j]);
@@ -1524,6 +1379,5 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             free(cell_exp_data);
             free(pcell_exp_exon);
         }
-
     }
 }

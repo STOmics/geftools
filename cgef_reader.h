@@ -7,15 +7,16 @@
 #ifndef GEFTOOLS_CGEF_READER_H
 #define GEFTOOLS_CGEF_READER_H
 
-#include <numeric>
-#include <vector>
 #include <map>
+#include <numeric>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
+
+#include "gef.h"
 #include "hdf5.h"
 #include "opencv2/opencv.hpp"
 #include "utils.h"
-#include "gef.h"
 
 struct GEFTOOLS_API Region {
     unsigned int min_x;
@@ -39,27 +40,27 @@ class GEFTOOLS_API CgefReader {
 
     unsigned int gene_num_ = 0;
     unsigned int gene_num_current_ = 0;
-    GeneData* gene_array_ = nullptr;
-    GeneData* gene_array_current_ = nullptr;
-    //如果 gene_id_to_index_[gene_id] >= 0，则 gene 在restrict_gene_的区域内。
-    int* gene_id_to_index_ = nullptr;
+    GeneData *gene_array_ = nullptr;
+    GeneData *gene_array_current_ = nullptr;
+    // 如果 gene_id_to_index_[gene_id] >= 0，则 gene 在restrict_gene_的区域内。
+    int *gene_id_to_index_ = nullptr;
 
     unsigned int cell_num_ = 0;
     unsigned int cell_num_current_ = 0;
-    CellData* cell_array_ = nullptr;
-    CellData* cell_array_current_ = nullptr;
-    unsigned int* cell_id_array_current_ = nullptr;
-    //如果 isInRegion[cell_id - start_cell_id] == true，则 cell 在restrict_region_的区域内。
-    int* cell_id_to_index_ = nullptr;
+    CellData *cell_array_ = nullptr;
+    CellData *cell_array_current_ = nullptr;
+    unsigned int *cell_id_array_current_ = nullptr;
+    // 如果 isInRegion[cell_id - start_cell_id] == true，则 cell 在restrict_region_的区域内。
+    int *cell_id_to_index_ = nullptr;
     unsigned int start_cell_id = 0;
     unsigned int end_cell_id = UINT_MAX;
 
     unsigned long long expression_num_ = 0;
     unsigned int expression_num_current_ = 0;
 
-    unsigned int block_size_[4]{};  ///< x_block_size, y_block_size, x_block_num, y_block_num
-    unsigned int* block_index_;  ///< offset, count
-    unordered_map<string,unsigned int> genename_to_id_;
+    unsigned int block_size_[4] {};  ///< x_block_size, y_block_size, x_block_num, y_block_num
+    unsigned int *block_index_;      ///< offset, count
+    unordered_map<string, unsigned int> genename_to_id_;
 
     hid_t openCellDataset(hid_t group_id);
     hid_t openCellExpDataset(hid_t group_id);
@@ -70,7 +71,7 @@ class GEFTOOLS_API CgefReader {
 
     CellData *loadCell(bool reload = false);
 
-    Region region_{};  ///< min_x, max_x, min_y, max_y
+    Region region_ {};  ///< min_x, max_x, min_y, max_y
     bool verbose_ = false;
     bool restrict_region_ = false;
     bool restrict_gene_ = false;
@@ -78,17 +79,18 @@ class GEFTOOLS_API CgefReader {
     // char *m_borderdataPtr = nullptr;
     // char *m_borderdata_currentPtr = nullptr;
     short *m_borderdataPtr_s = nullptr;
-    //short *m_borderdata_currentPtr_s = nullptr;
+    // short *m_borderdata_currentPtr_s = nullptr;
     short *m_pborcnt = nullptr;
 
     unsigned int m_ver = 0;
     unsigned int m_resolution = 0;
     int offsetX = 0;
     int offsetY = 0;
-    unsigned int m_ver_tool[3] ={0};
+    unsigned int m_ver_tool[3] = {0};
     int m_bordercnt = 0;
     bool m_bexon = false;
     bool isOldCellExpVersion = false;
+
   public:
     explicit CgefReader(const string &filename, bool verbose = false);
     ~CgefReader();
@@ -103,9 +105,9 @@ class GEFTOOLS_API CgefReader {
      * @brief Gets gene name array, 32 bit for each string.
      * @param gene_names
      */
-    void getGeneNames(char * gene_names);
+    void getGeneNames(char *gene_names);
 
-    int getGeneId(string& gene_name);
+    int getGeneId(string &gene_name);
     GeneData *getGene();
     GeneData getGene(unsigned int gene_id) const;
     CellData *getCell();
@@ -115,13 +117,13 @@ class GEFTOOLS_API CgefReader {
      * @brief Gets gene name array, 32 bit for each string.
      * @param gene_list
      */
-    void getGeneNameList(vector<string> & gene_list);
+    void getGeneNameList(vector<string> &gene_list);
 
     /**
      * @brief Gets cell pos array.  store x,y in a number (unsigned long long int) : x << 32 | y
      * @param cell_name_list
      */
-    void getCellNameList(unsigned long long int * cell_name_list);
+    void getCellNameList(unsigned long long int *cell_name_list);
 
     /**
      * @brief Use blocks that intersect the input region.
@@ -139,7 +141,7 @@ class GEFTOOLS_API CgefReader {
      * @param gene_list
      * @param exclude
      */
-    void restrictGene(vector<string> & gene_list, bool exclude = false);
+    void restrictGene(vector<string> &gene_list, bool exclude = false);
 
     void freeRestriction();
 
@@ -164,7 +166,7 @@ class GEFTOOLS_API CgefReader {
      * @param order    Order of count, "gene" or "cell".
      * @return
      */
-    int getSparseMatrixIndices(unsigned int * indices, unsigned int * indptr, unsigned int * count, const char * order);
+    int getSparseMatrixIndices(unsigned int *indices, unsigned int *indptr, unsigned int *count, const char *order);
 
     /**
      * @brief Gets indices for building csr_matrix.
@@ -173,7 +175,7 @@ class GEFTOOLS_API CgefReader {
      * @param gene_ind     CSR format index array of the matrix. same size as count.
      * @param count        CSR format data array of the matrix. Expression count.
      */
-    int getSparseMatrixIndices2(unsigned int * cell_ind, unsigned int * gene_ind, unsigned int * count);
+    int getSparseMatrixIndices2(unsigned int *cell_ind, unsigned int *gene_ind, unsigned int *count);
 
     /**
      * @brief Gets cellId and count from the geneExp dataset.
@@ -195,11 +197,11 @@ class GEFTOOLS_API CgefReader {
      * @param expressions
      * @return
      */
-    unsigned int getExpressionCountByGene(string& gene_name, GeneExpData* expressions);
+    unsigned int getExpressionCountByGene(string &gene_name, GeneExpData *expressions);
 
-    unsigned int getExpressionCountByGeneId(unsigned int gene_id, GeneExpData* expressions);
+    unsigned int getExpressionCountByGeneId(unsigned int gene_id, GeneExpData *expressions);
 
-    unsigned int getCellCount(string& gene_name);
+    unsigned int getCellCount(string &gene_name);
 
     unsigned int getCellCount(unsigned int gene_id);
 
@@ -218,10 +220,8 @@ class GEFTOOLS_API CgefReader {
      * @param exclude The genes in gene_name_list is to exclude, default: false.
      * @return Number of output entries.
      */
-    unsigned int toGem(string & filename,
-                       const vector<string> & gene_name_list = vector<string>(),
-                       bool force_genes = false,
-                       bool exclude = false);
+    unsigned int toGem(string &filename, const vector<string> &gene_name_list = vector<string>(),
+                       bool force_genes = false, bool exclude = false);
 
     /**
      * @brief Determine whether the restrictRegion function is run to limit to a rectangular region.
@@ -254,20 +254,16 @@ class GEFTOOLS_API CgefReader {
     int getCellBorders(vector<unsigned int> &cell_ind, vector<short> &border);
     void getCellBorders(vector<unsigned int> &cell_ind, vector<short> &border, vector<short> &borcnt);
     void getAttr();
-    uint32_t* getGefVer()
-    {
-        return m_ver_tool;
-    }
+    uint32_t *getGefVer() { return m_ver_tool; }
 
-    void getfiltereddata(vector<int> &region, vector<string> &genelist,
-                    vector<string> &vec_gene, vector<unsigned long long> &uniq_cells,
-                    vector<unsigned int> &cell_ind, vector<unsigned int> &gene_ind, vector<unsigned int> &count);
+    void getfiltereddata(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
+                         vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
+                         vector<unsigned int> &gene_ind, vector<unsigned int> &count);
 
-    bool isContainExon(){return m_bexon;}
-    void getfiltereddata_exon(vector<int> &region, vector<string> &genelist,
-                    vector<string> &vec_gene, vector<unsigned long long> &uniq_cells,
-                    vector<unsigned int> &cell_ind, vector<unsigned int> &gene_ind, 
-                    vector<unsigned int> &count, vector<unsigned int> &exon);
+    bool isContainExon() { return m_bexon; }
+    void getfiltereddata_exon(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
+                              vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
+                              vector<unsigned int> &gene_ind, vector<unsigned int> &count, vector<unsigned int> &exon);
 };
 
-#endif //GEFTOOLS_CGEF_READER_H
+#endif  // GEFTOOLS_CGEF_READER_H

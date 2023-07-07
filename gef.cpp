@@ -6,9 +6,10 @@
  * @Description: file content
  */
 #include "gef.h"
+
 #include "utils.h"
 
-hid_t getMemtypeOfGeneData(){
+hid_t getMemtypeOfGeneData() {
     hid_t memtype;
     // hid_t str32_type_ = H5Tcopy(H5T_C_S1);
     // H5Tset_size(str32_type_, 32);
@@ -28,10 +29,9 @@ hid_t getMemtypeOfGeneExpData() {
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(GeneExpData));
     H5Tinsert(memtype, "cellID", HOFFSET(GeneExpData, cell_id), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "count", HOFFSET(GeneExpData, count), H5T_NATIVE_USHORT);
-    //H5Tinsert(memtype, "incnt", HOFFSET(GeneExpData, incnt), H5T_NATIVE_USHORT);
+    // H5Tinsert(memtype, "incnt", HOFFSET(GeneExpData, incnt), H5T_NATIVE_USHORT);
     return memtype;
 }
-
 
 hid_t getMemtypeOfCellData() {
     hid_t memtype;
@@ -46,8 +46,8 @@ hid_t getMemtypeOfCellData() {
     H5Tinsert(memtype, "area", HOFFSET(CellData, area), H5T_NATIVE_USHORT);
     H5Tinsert(memtype, "cellTypeID", HOFFSET(CellData, cell_type_id), H5T_NATIVE_USHORT);
     H5Tinsert(memtype, "clusterID", HOFFSET(CellData, cluster_id), H5T_NATIVE_USHORT);
-    //H5Tinsert(memtype, "incnt", HOFFSET(CellData, incnt), H5T_NATIVE_USHORT);
-    
+    // H5Tinsert(memtype, "incnt", HOFFSET(CellData, incnt), H5T_NATIVE_USHORT);
+
     return memtype;
 }
 
@@ -67,13 +67,12 @@ hid_t getMemtypeOfOlderCellExpData() {
     return memtype;
 }
 
-bool isOlderCellExpDataVersion(hid_t fileId)
-{
-    unsigned int geftoolVersion[3] ={0};
+bool isOlderCellExpDataVersion(hid_t fileId) {
+    unsigned int geftoolVersion[3] = {0};
     hid_t attr = H5Aopen(fileId, "geftool_ver", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT32, geftoolVersion);
     printf("version is %d.%d.%d ", geftoolVersion[0], geftoolVersion[1], geftoolVersion[2]);
-    
+
     if (geftoolVersion[0] == 0 && geftoolVersion[1] <= 7) {
         if (geftoolVersion[1] == 7 && geftoolVersion[2] >= 6) {
             return false;

@@ -2,29 +2,29 @@
 #ifndef GENETOH5_BINTASK_H
 #define GENETOH5_BINTASK_H
 
-#include <map>
 #include <algorithm>
-#include "thread_pool.h"
-#include "bgef_options.h"
+#include <map>
 
-struct GEFTOOLS_API midcnt
-{
+#include "bgef_options.h"
+#include "thread_pool.h"
+
+struct GEFTOOLS_API midcnt {
     unsigned int total;
     unsigned int exon;
 };
 
-
-class GEFTOOLS_API BinTask:public ITask
-{
-public:
+class GEFTOOLS_API BinTask : public ITask {
+  public:
     BinTask(int bin, const char *ptr);
     ~BinTask();
     void doTask();
-private:
+
+  private:
     void bin1task();
     void bin100task();
     void othertask();
-private:
+
+  private:
     int m_bin;
     const char *m_geneid;
     BgefOptions *opts_;

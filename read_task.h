@@ -10,32 +10,33 @@
 #define GENETOH5_READTASK_H
 
 #include <unordered_map>
+
 #include "gef.h"
-#include "utils.h"
 #include "thread_pool.h"
+#include "utils.h"
 
 using namespace std;
 
-typedef struct
-{
-    int readlen; //想要读取的长度
-    int reallen; //实际读取的长度
-}RLen;
+typedef struct {
+    int readlen;  // 想要读取的长度
+    int reallen;  // 实际读取的长度
+} RLen;
 
-
-class ReadTask:public ITask
-{
-public:
-    ReadTask(bool bexon, gzFile file, std::vector<int> &range, std::unordered_map<std::string, std::vector<Expression>> &map_gene_exp);
+class ReadTask : public ITask {
+  public:
+    ReadTask(bool bexon, gzFile file, std::vector<int> &range,
+             std::unordered_map<std::string, std::vector<Expression>> &map_gene_exp);
     ~ReadTask();
     void doTask();
-private:
+
+  private:
     void readbuf(RLen &rlen);
     int cuttail(char *pbuf);
     int getGeneInfo();
     int mergeGeneinfo();
     int getGeneInfo_exon();
-private:
+
+  private:
     bool m_bexon = false;
     int m_buflen = 0;
     int min_x = INT_MAX, min_y = INT_MAX, max_x = 0, max_y = 0;
@@ -47,9 +48,8 @@ private:
     std::unordered_map<std::string, std::vector<Expression>> &m_map_gene_exp;
 
     static string m_leftstr;
-    static mutex m_readmtx; //读文件锁
-    static mutex m_mergemtx; //合并锁
+    static mutex m_readmtx;   // 读文件锁
+    static mutex m_mergemtx;  // 合并锁
 };
 
-
-#endif //GENETOH5_READTASK_H
+#endif  // GENETOH5_READTASK_H
