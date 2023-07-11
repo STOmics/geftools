@@ -44,7 +44,8 @@ int cgef(int argc, char *argv[]);
 int GEFTOOLS_API generateCgef(const string &cgef_file, const string &bgef_file, const string &mask_file,
                               const int *block_size, int rand_celltype_num, bool verbose = false);
 
-int GEFTOOLS_API cgem2cgef(const string &strcgem, const string &strcgef, const int *block_size, int rand_celltype_num);
+int GEFTOOLS_API cgem2cgef(const string &strcgem, const string &strcgef, const int *block_size, int rand_celltype_num,
+                           const string &omics);
 
 void GEFTOOLS_API AddClusterId4Cgef(const string &input_file, const string &output_file, const string &cluster_file);
 

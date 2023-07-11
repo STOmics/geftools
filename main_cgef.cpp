@@ -40,7 +40,8 @@ int cgef(int argc, char *argv[]) {
         "t,threads", "number of threads", cxxopts::value<int>()->default_value("8"), "INT")(
         "v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))(
         "g,raw-gem", "raw gem file", cxxopts::value<std::string>(), "FILE")("p,patch", "Create 3d group patch",
-                                                                            cxxopts::value<int>()->default_value("0"))
+                                                                            cxxopts::value<int>()->default_value("0"))(
+        "O,omics", "input omics [request]", cxxopts::value<std::string>()->default_value("Transcriptomics"), "STR")
         // ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
         ("help", "Print help");
 
@@ -82,9 +83,16 @@ int cgef(int argc, char *argv[]) {
         cgefParam::GetInstance()->m_rawgemstr = result["raw-gem"].as<string>();
     }
 
+    if (result.count("omics") != 1) {
+        cgefParam::GetInstance()->has_omics_ = false;
+    } else {
+        cgefParam::GetInstance()->has_omics_ = true;
+    }
+
     int rand_celltype_num = result["rand-celltype"].as<int>();
     cgefParam::GetInstance()->m_inputstr = result["input-file"].as<string>();
     cgefParam::GetInstance()->m_threadcnt = result["threads"].as<int>();
+    cgefParam::GetInstance()->stromics_ = result["omics"].as<string>();
 
     vector<string> block_size_tmp = split(result["block"].as<string>(), ',');
     if (block_size_tmp.size() != 2) {
@@ -106,8 +114,14 @@ int cgef(int argc, char *argv[]) {
         generateCgef(cgefParam::GetInstance()->m_outputstr, cgefParam::GetInstance()->m_inputstr,
                      cgefParam::GetInstance()->m_maskstr, cgefParam::GetInstance()->m_block_size, rand_celltype_num);
     } else if (patch == 2) {
+        if (!cgefParam::GetInstance()->has_omics_) {
+            std::cerr << "The -O,--omics parameter must be given. no omics information." << std::endl;
+            reportErrorCode2File(errorCode::E_INVALIDPARAM,
+                                 "The -O,--omics parameter must be given. no omics information.");
+            exit(1);
+        }
         cgem2cgef(cgefParam::GetInstance()->m_inputstr, cgefParam::GetInstance()->m_outputstr,
-                  cgefParam::GetInstance()->m_block_size, rand_celltype_num);
+                  cgefParam::GetInstance()->m_block_size, rand_celltype_num, cgefParam::GetInstance()->stromics_);
     }
 
     return 0;
@@ -127,12 +141,14 @@ int generateCgef(const string &cgef_file, const string &bgef_file, const string 
     return 0;
 }
 
-int cgem2cgef(const string &strcgem, const string &strcgef, const int *block_size, int rand_celltype_num) {
+int cgem2cgef(const string &strcgem, const string &strcgef, const int *block_size, int rand_celltype_num,
+              const string &omics) {
     cgefParam::GetInstance()->m_block_size[0] = block_size[0];
     cgefParam::GetInstance()->m_block_size[1] = block_size[1];
     CgefWriter cgef_writer(false);
     cgef_writer.setOutput(strcgef);
     cgef_writer.setRandomCellTypeNum(rand_celltype_num);
+    cgefParam::GetInstance()->stromics_ = omics;
 
     cgefCellgem cgef;
     cgef.cgem2cgef(&cgef_writer, strcgem);

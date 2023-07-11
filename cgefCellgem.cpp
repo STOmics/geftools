@@ -111,7 +111,7 @@ void cgefCellgem::writeAttr() {
                                  /*.resolution = */ cgefParam::GetInstance()->m_resolution,
                                  /*.offsetX = */ cgefParam::GetInstance()->m_min_x,
                                  /*.offsetY = */ cgefParam::GetInstance()->m_min_y,
-                                 /*.omics = */ m_stromics};
+                                 /*.omics = */ cgefParam::GetInstance()->stromics_};
     m_cgefwPtr->storeAttr(cell_bin_attr);
 }
 
@@ -562,6 +562,8 @@ void cgefCellgem::writeCell_cgem() {
 
     for (vector<uint32_t> &vec : m_vec_veccid) {
         int cnt = 0;
+        // sort vec
+
         for (uint32_t ocid : vec) {
             cgef_cell *cellptr = cgefParam::GetInstance()->m_map_cell[ocid];
             if (cellptr == nullptr) continue;
@@ -811,10 +813,13 @@ void cgefCellgem::readBgef_new(const string &strinput) {
     if (H5Aexists(file_id, "omics")) {
         hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
         char szbuf[128] = {0};
-        H5Aread(f_attr, strtype, szbuf);
-        m_stromics.clear();
-        m_stromics.append(szbuf);
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        cgefParam::GetInstance()->stromics_.clear();
+        cgefParam::GetInstance()->stromics_.append(szbuf);
         H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
     }
     H5Tclose(strtype);
 
@@ -929,6 +934,8 @@ void cgefCellgem::writeCell_new() {
     // vec_borcnt.reserve(m_maskcellnum);
 
     for (vector<cellUnit *> &vec : m_vec_vec_cellunit) {
+        // sort by label
+
         for (cellUnit *ptr : vec) {
             vec_cellexon.emplace_back(ptr->m_exoncnt);
             minExon = std::min(minExon, ptr->m_exoncnt);

@@ -31,7 +31,7 @@ using namespace std;
 // using namespace cv;
 
 const int READLEN = 256 * 1024;
-const unsigned int GEFVERSION[3] = {0, 8, 2};
+const unsigned int GEFVERSION[3] = {0, 8, 3};
 const int BORDERCNT = 32;
 
 namespace errorCode {
