@@ -77,7 +77,7 @@ BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool 
     H5Aread(attr, H5T_NATIVE_UINT, &version_);
     H5Aclose(attr);
 
-    if (H5Lexists(file_id_, "gef_area", H5P_DEFAULT) > 0) {
+    if (H5Aexists(file_id_, "gef_area") > 0) {
         hid_t area_attr = H5Aopen(file_id_, "gef_area", H5P_DEFAULT);
         H5Aread(area_attr, H5T_NATIVE_FLOAT, &gef_area_);
         H5Aclose(area_attr);
