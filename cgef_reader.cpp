@@ -2,11 +2,35 @@
 #include "cgef_reader.h"
 
 CgefReader::CgefReader(const string &filename, bool verbose) {
+    verbose_ = verbose;
     str32_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str32_type_, 32);
-    verbose_ = verbose;
 
     file_id_ = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id_ < 0) {
+        log_info << "can not open gef file. please check file. ";
+    }
+
+    std::string omics_type = "";
+    if (H5Aexists(file_id_, "omics")) {
+        hid_t f_attr = H5Aopen(file_id_, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics_type.append(szbuf);
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        log_info << "can not find omics type. please check file. ";
+    }
+
+    if (omics_type == "Transcriptomics") {
+        omics_t_ = "gene";
+    } else {
+        omics_t_ = "protein";
+    }
+
     group_id_ = H5Gopen(file_id_, "/cellBin", H5P_DEFAULT);
     getAttr();
     cell_dataset_id_ = openCellDataset(group_id_);
@@ -143,7 +167,7 @@ hid_t CgefReader::openCellDataset(hid_t group_id) {
 
 hid_t CgefReader::openGeneDataset(hid_t group_id) {
     hsize_t dims[1];
-    gene_dataset_id_ = H5Dopen(group_id, "gene", H5P_DEFAULT);
+    gene_dataset_id_ = H5Dopen(group_id, omics_t_.c_str(), H5P_DEFAULT);
     if (gene_dataset_id_ < 0) {
         cerr << "failed open dataset: gene" << endl;
         return gene_dataset_id_;
@@ -167,9 +191,10 @@ hid_t CgefReader::openCellExpDataset(hid_t group_id) {
 }
 
 hid_t CgefReader::openGeneExpDataset(hid_t group_id) {
-    gene_exp_dataset_id_ = H5Dopen(group_id, "geneExp", H5P_DEFAULT);
+    std::string exp_name = omics_t_ + "Exp";
+    gene_exp_dataset_id_ = H5Dopen(group_id, exp_name.c_str(), H5P_DEFAULT);
     if (gene_exp_dataset_id_ < 0) {
-        cerr << "failed open dataset: geneExp" << endl;
+        cerr << "failed open dataset: " << exp_name << endl;
         return gene_exp_dataset_id_;
     }
     return gene_exp_dataset_id_;
@@ -190,7 +215,7 @@ GeneData *CgefReader::loadGene(bool reload) {
             return gene_array_;
     }
 
-    hid_t memtype = getMemtypeOfGeneData();
+    hid_t memtype = getMemtypeOfGeneData(omics_t_);
     gene_array_ = (GeneData *)malloc(gene_num_ * sizeof(GeneData));
     H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_array_);
 
@@ -214,7 +239,7 @@ CellData *CgefReader::loadCell(bool reload) {
             return cell_array_;
     }
 
-    hid_t memtype = getMemtypeOfCellData();
+    hid_t memtype = getMemtypeOfCellData(omics_t_);
     cell_array_ = (CellData *)malloc(cell_num_ * sizeof(CellData));
     H5Dread(cell_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_array_);
     if (verbose_) printCpuTime(cprev, "getCell");
@@ -416,7 +441,7 @@ void CgefReader::getCellIdAndCount(unsigned int *cell_id, unsigned short *count)
 
 void CgefReader::getGeneIdAndCount(unsigned int *gene_id, unsigned short *count) const {
     if (isOldCellExpVersion) {
-        hid_t memtype = getMemtypeOfOlderCellExpData();
+        hid_t memtype = getMemtypeOfOlderCellExpData(omics_t_);
         olderCellExpData *cell_exp_data;
         cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
         H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
@@ -426,7 +451,7 @@ void CgefReader::getGeneIdAndCount(unsigned int *gene_id, unsigned short *count)
         }
         free(cell_exp_data);
     } else {
-        hid_t memtype = getMemtypeOfCellExpData();
+        hid_t memtype = getMemtypeOfCellExpData(omics_t_);
         CellExpData *cell_exp_data;
         cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
         H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
@@ -623,7 +648,7 @@ void CgefReader::selectCells(unsigned int offset, unsigned int cell_count, CellD
     hsize_t start[1] = {offset}, count[1] = {cell_count}, offset_out[1] = {0};
 
     hid_t memtype;
-    memtype = getMemtypeOfCellData();
+    memtype = getMemtypeOfCellData(omics_t_);
 
     // Define memory dataspace.
     hid_t memspace = H5Screate_simple(1, count, nullptr);
@@ -637,7 +662,7 @@ void CgefReader::selectCellExp(unsigned int offset, unsigned int gene_count, Cel
     hsize_t start[1] = {offset}, count[1] = {gene_count}, offset_out[1] = {0};
 
     hid_t memtype;
-    memtype = getMemtypeOfCellExpData();
+    memtype = getMemtypeOfCellExpData(omics_t_);
 
     // Define memory dataspace.
     hid_t memspace = H5Screate_simple(1, count, nullptr);
@@ -651,7 +676,7 @@ void CgefReader::selectOlderCellExp(unsigned int offset, unsigned int gene_count
                                     olderCellExpData *cell_exp_data) const {
     hsize_t start[1] = {offset}, count[1] = {gene_count}, offset_out[1] = {0};
 
-    hid_t memtype = getMemtypeOfOlderCellExpData();
+    hid_t memtype = getMemtypeOfOlderCellExpData(omics_t_);
 
     // Define memory dataspace.
     hid_t memspace = H5Screate_simple(1, count, nullptr);
@@ -926,7 +951,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
 
     if (genelist.empty() && (!region.empty())) {
         if (isOldCellExpVersion) {
-            hid_t memtype = getMemtypeOfOlderCellExpData();
+            hid_t memtype = getMemtypeOfOlderCellExpData(omics_t_);
             olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
@@ -959,7 +984,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
             }
             free(cell_exp_data);
         } else {
-            hid_t memtype = getMemtypeOfCellExpData();
+            hid_t memtype = getMemtypeOfCellExpData(omics_t_);
             CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
@@ -1075,7 +1100,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
         free(gene_exp_data);
     } else if (region.empty() && genelist.empty()) {
         if (isOldCellExpVersion) {
-            hid_t memtype = getMemtypeOfOlderCellExpData();
+            hid_t memtype = getMemtypeOfOlderCellExpData(omics_t_);
             olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
@@ -1097,7 +1122,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
             }
             free(cell_exp_data);
         } else {
-            hid_t memtype = getMemtypeOfCellExpData();
+            hid_t memtype = getMemtypeOfCellExpData(omics_t_);
             CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
@@ -1139,7 +1164,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
 
     if (genelist.empty() && (!region.empty())) {
         if (isOldCellExpVersion) {
-            hid_t memtype = getMemtypeOfOlderCellExpData();
+            hid_t memtype = getMemtypeOfOlderCellExpData(omics_t_);
             olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
@@ -1180,7 +1205,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             free(cell_exp_data);
             free(pcell_exp_exon);
         } else {
-            hid_t memtype = getMemtypeOfCellExpData();
+            hid_t memtype = getMemtypeOfCellExpData(omics_t_);
             CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
@@ -1321,7 +1346,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
         free(pgene_exp_exon);
     } else if (region.empty() && genelist.empty()) {
         if (isOldCellExpVersion) {
-            hid_t memtype = getMemtypeOfOlderCellExpData();
+            hid_t memtype = getMemtypeOfOlderCellExpData(omics_t_);
             olderCellExpData *cell_exp_data = (olderCellExpData *)malloc(expression_num_ * sizeof(olderCellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 
@@ -1350,7 +1375,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             free(cell_exp_data);
             free(pcell_exp_exon);
         } else {
-            hid_t memtype = getMemtypeOfCellExpData();
+            hid_t memtype = getMemtypeOfCellExpData(omics_t_);
             CellExpData *cell_exp_data = (CellExpData *)malloc(expression_num_ * sizeof(CellExpData));
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_exp_data);
 

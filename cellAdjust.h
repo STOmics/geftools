@@ -124,6 +124,7 @@ class GEFTOOLS_API cellAdjust {
 
     cv::Mat multilabel_img;
     int cellbin_minx = INT_MAX, cellbin_miny = INT_MAX, cellbin_maxx = 0, cellbin_maxy = 0;
+    std::string omics_t_;
 };
 
 #endif

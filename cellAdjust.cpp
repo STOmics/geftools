@@ -137,6 +137,12 @@ void cellAdjust::readBgef(const string &strinput) {
 void cellAdjust::readCgef(const string &strinput) {
     timer st(__FUNCTION__);
     hid_t file_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "can not open gef file. please check file. ";
+        return;
+    }
+    std::string omics_t = getOmicsName(file_id);
+
     hid_t cell_did = H5Dopen(file_id, "/cellBin/cell", H5P_DEFAULT);
 
     hsize_t dims[1];
@@ -144,7 +150,7 @@ void cellAdjust::readCgef(const string &strinput) {
     H5Sget_simple_extent_dims(cell_sid, dims, nullptr);
 
     m_cellcnt = dims[0];
-    hid_t memtype = getMemtypeOfCellData();
+    hid_t memtype = getMemtypeOfCellData(omics_t);
     m_cell_arrayptr = (CellData *)malloc(dims[0] * sizeof(CellData));
     H5Dread(cell_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_cell_arrayptr);
 
@@ -180,13 +186,13 @@ void cellAdjust::readCgef(const string &strinput) {
     int cellexpcnt = dims[0];
     if (isOlderCellExpDataVersion(file_id)) {
         isOldCellExpVersion = true;
-        hid_t memtype = getMemtypeOfOlderCellExpData();
+        hid_t memtype = getMemtypeOfOlderCellExpData(omics_t);
         m_olderCellExpPtr = (olderCellExpData *)malloc(dims[0] * sizeof(olderCellExpData));
         H5Dread(cell_exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_olderCellExpPtr);
         H5Tclose(memtype);
     } else {
         isOldCellExpVersion = false;
-        hid_t memtype = getMemtypeOfCellExpData();
+        hid_t memtype = getMemtypeOfCellExpData(omics_t);
         m_cellexpPtr = (CellExpData *)malloc(dims[0] * sizeof(CellExpData));
         H5Dread(cell_exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_cellexpPtr);
         H5Tclose(memtype);
@@ -939,6 +945,11 @@ void cellAdjust::getRegionCelldata(vector<vector<int>> &m_vecpos) {
 void cellAdjust::readRawCgef(const string &strcgef) {
     timer st(__FUNCTION__);
     hid_t file_id = H5Fopen(strcgef.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "can not open gef file. please check file. ";
+        return;
+    }
+    std::string omics_t = getOmicsName(file_id);
 
     uint32_t cellexpcnt = 0;
     // cell
@@ -947,7 +958,7 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     hid_t cell_sid = H5Dget_space(cell_did);
     H5Sget_simple_extent_dims(cell_sid, dims, nullptr);
     m_cellcnt = dims[0];
-    hid_t memtype = getMemtypeOfCellData();
+    hid_t memtype = getMemtypeOfCellData(omics_t);
     m_cell_arrayptr = (CellData *)malloc(dims[0] * sizeof(CellData));
     H5Dread(cell_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_cell_arrayptr);
     H5Tclose(memtype);
@@ -1004,12 +1015,12 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     cellexpcnt = dims[0];
     if (isOlderCellExpDataVersion(file_id)) {
         isOldCellExpVersion = true;
-        memtype = getMemtypeOfOlderCellExpData();
+        memtype = getMemtypeOfOlderCellExpData(omics_t);
         m_olderCellExpPtr = (olderCellExpData *)malloc(dims[0] * sizeof(olderCellExpData));
         H5Dread(cell_exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_olderCellExpPtr);
     } else {
         isOldCellExpVersion = false;
-        memtype = getMemtypeOfCellExpData();
+        memtype = getMemtypeOfCellExpData(omics_t);
         m_cellexpPtr = (CellExpData *)malloc(dims[0] * sizeof(CellExpData));
         H5Dread(cell_exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_cellexpPtr);
     }
@@ -1018,11 +1029,11 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     H5Dclose(cell_exp_did);
 
     // gene
-    hid_t gene_did = H5Dopen(file_id, "/cellBin/gene", H5P_DEFAULT);
+    hid_t gene_did = H5Dopen(file_id, util::Format("/cellBin/{0}", omics_t).c_str(), H5P_DEFAULT);
     dataspace_id = H5Dget_space(gene_did);
     H5Sget_simple_extent_dims(dataspace_id, dims, nullptr);
     m_genencnt = dims[0];
-    memtype = getMemtypeOfGeneData();
+    memtype = getMemtypeOfGeneData(omics_t);
     m_genePtr = (GeneData *)malloc(dims[0] * sizeof(GeneData));
     H5Dread(gene_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
     H5Tclose(memtype);
@@ -1520,24 +1531,24 @@ void cellAdjust::getSapRegionIndex(const string &strinput, int bin, int thcnt, v
     std::vector<int> x_list;
     std::vector<int> y_list;
     // if (bin != 1) {
-        int id = 0, m, n;
-        for (uint32_t x = 0; x < dims[0]; x++)  // cols
+    int id = 0, m, n;
+    for (uint32_t x = 0; x < dims[0]; x++)  // cols
+    {
+        for (uint32_t y = 0; y < dims[1]; y++)  // rows
         {
-            for (uint32_t y = 0; y < dims[1]; y++)  // rows
-            {
-                id = x * dims[1] + y;
-                m = x * bin;
-                n = y * bin;
-                if (fill_points.at<uchar>(n, m)) {
-                    if (m_parry[id].gene_count) {
-                        x_list.emplace_back(m);
-                        y_list.emplace_back(n);
-                    }
+            id = x * dims[1] + y;
+            m = x * bin;
+            n = y * bin;
+            if (fill_points.at<uchar>(n, m)) {
+                if (m_parry[id].gene_count) {
+                    x_list.emplace_back(m);
+                    y_list.emplace_back(n);
                 }
             }
         }
-        vecdata.emplace_back(x_list);
-        vecdata.emplace_back(y_list);
+    }
+    vecdata.emplace_back(x_list);
+    vecdata.emplace_back(y_list);
     // } else {
     //     ThreadPool thpool(thcnt);
     //     for (int i = 0; i < thcnt; i++) {
@@ -1811,13 +1822,18 @@ void cellAdjust::getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<
 
     // read cgef file
     hid_t file_id = H5Fopen(strcgef.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "can not open gef file. please check file. ";
+        return;
+    }
+    std::string omics_t = getOmicsName(file_id);
 
     hid_t cell_did = H5Dopen(file_id, "/cellBin/cell", H5P_DEFAULT);
     hsize_t dims[1];
     hid_t cell_sid = H5Dget_space(cell_did);
     H5Sget_simple_extent_dims(cell_sid, dims, nullptr);
     m_cellcnt = dims[0];
-    hid_t memtype = getMemtypeOfCellData();
+    hid_t memtype = getMemtypeOfCellData(omics_t);
     m_cell_arrayptr = (CellData *)malloc(dims[0] * sizeof(CellData));
     H5Dread(cell_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_cell_arrayptr);
 

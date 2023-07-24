@@ -52,6 +52,7 @@ class GEFTOOLS_API bgefCreater {
     gzFile m_file;
     std::vector<string> m_vecgenename;
     ThreadPool *m_tpoolPtr = nullptr;
+    std::string omics_t_ {""};
 };
 
 class GEFTOOLS_API bgefmaskTask : public ITask {

@@ -33,28 +33,31 @@ KHASH_MAP_INIT_INT64(m64, unsigned int)
 std::mutex getdataTask::m_mtx;
 
 BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool verbose) {
-    file_id_ = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-    printf("path:%s bin:%d\n", filename.c_str(), bin_size);
-    if (file_id_ < 0) {
-        printf("H5Fopen error\n");
-        reportErrorCode2File(errorCode::E_FILEOPENERROR, "H5Fopen error ");
-        exit(1);
-    }
     bin_size_ = bin_size;
     verbose_ = verbose;
     n_thread_ = n_thread;
 
-    char dname[128] = {0};
-    sprintf(dname, "/geneExp/bin1/exon");
-    if (H5Lexists(file_id_, dname, H5P_DEFAULT) > 0) {
-        m_bexon = true;
-    } else {
-        printf("%s is not exist\n", dname);
+    log_info << "file path:" << filename.c_str() << " current bin:" << bin_size;
+    file_id_ = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id_ < 0) {
+        log_info << "open bgef file error. ";
+        return;
+    }
+    omics_t_ = getOmicsName(file_id_);
+    if (omics_t_.empty()) {
+        log_info << "can not get omics type, please check file. ";
+        return;
     }
 
-    char binName[128] = {0};
-    sprintf(binName, "/geneExp/bin%d", bin_size_);
-    if (H5Lexists(file_id_, binName, H5P_DEFAULT) > 0) {
+    std::string dname = util::Format("/{0}Exp/bin1/exon", omics_t_);
+    if (H5Lexists(file_id_, dname.c_str(), H5P_DEFAULT) > 0) {
+        m_bexon = true;
+    } else {
+        log_info << dname << " is not exist. ";
+    }
+
+    std::string binName = util::Format("/{0}Exp/bin{1}", omics_t_, bin_size_);
+    if (H5Lexists(file_id_, binName.c_str(), H5P_DEFAULT) > 0) {
         openExpressionSpace(bin_size_);
         openGeneSpace(bin_size_);
         if (m_bexon) {
@@ -74,12 +77,12 @@ BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool 
     H5Aread(attr, H5T_NATIVE_UINT, &version_);
     H5Aclose(attr);
 
-    if (H5Lexists(file_id_, "gef_area", H5P_DEFAULT) > 0) {
+    if (H5Aexists(file_id_, "gef_area") > 0) {
         hid_t area_attr = H5Aopen(file_id_, "gef_area", H5P_DEFAULT);
         H5Aread(area_attr, H5T_NATIVE_FLOAT, &gef_area_);
         H5Aclose(area_attr);
     } else {
-        gef_area_ = 0.0f;
+        gef_area_ = 0.0f;  // set default val
     }
 }
 
@@ -106,9 +109,10 @@ BgefReader::~BgefReader() {
 void BgefReader::openExpressionSpace(int bin_size) {
     hsize_t dims[1];
     // Read raw data
-    char expName[128] = {0};
-    sprintf(expName, "/geneExp/bin%d/expression", bin_size);
-    exp_dataset_id_ = H5Dopen(file_id_, expName, H5P_DEFAULT);
+    // char expName[128] = {0};
+    // sprintf(expName, "/geneExp/bin%d/expression", bin_size);
+    std::string expName = util::Format("/{0}Exp/bin{1}/expression", omics_t_, bin_size);
+    exp_dataset_id_ = H5Dopen(file_id_, expName.c_str(), H5P_DEFAULT);
     if (exp_dataset_id_ < 0) {
         cerr << "failed open dataset: " << expName << endl;
         return;
@@ -119,9 +123,10 @@ void BgefReader::openExpressionSpace(int bin_size) {
 }
 
 void BgefReader::openExonSpace(int bin_size) {
-    char expName[128] = {0};
-    sprintf(expName, "/geneExp/bin%d/exon", bin_size);
-    m_exon_did = H5Dopen(file_id_, expName, H5P_DEFAULT);
+    // char expName[128] = {0};
+    // sprintf(expName, "/geneExp/bin%d/exon", bin_size);
+    std::string expName = util::Format("/{0}Exp/bin{1}/exon", omics_t_, bin_size);
+    m_exon_did = H5Dopen(file_id_, expName.c_str(), H5P_DEFAULT);
     if (exp_dataset_id_ < 0) {
         cerr << "failed open dataset: " << expName << endl;
         return;
@@ -130,11 +135,11 @@ void BgefReader::openExonSpace(int bin_size) {
 
 void BgefReader::openGeneSpace(int bin_size) {
     hsize_t dims[1];
-
     // Read index
-    char idxName[128] = {0};
-    sprintf(idxName, "/geneExp/bin%d/gene", bin_size);
-    gene_dataset_id_ = H5Dopen(file_id_, idxName, H5P_DEFAULT);
+    // char idxName[128] = {0};
+    // sprintf(idxName, "/geneExp/bin%d/gene", bin_size);
+    std::string idxName = util::Format("/{0}Exp/bin{1}/{2}", omics_t_, bin_size, omics_t_);
+    gene_dataset_id_ = H5Dopen(file_id_, idxName.c_str(), H5P_DEFAULT);
     if (gene_dataset_id_ < 0) {
         cerr << "failed open dataset: " << idxName << endl;
         return;
@@ -146,14 +151,14 @@ void BgefReader::openGeneSpace(int bin_size) {
 
 void BgefReader::openWholeExpSpace() {
     hsize_t dims[2];
-
     // Read index
-    char idxName[128] = {0};
-    sprintf(idxName, "/wholeExp/bin%d", bin_size_);
+    // char idxName[128] = {0};
+    // sprintf(idxName, "/wholeExp/bin%d", bin_size_);
+    std::string idxName = util::Format("/wholeExp/bin{0}", bin_size_);
     //    if(!H5Lexists(file_id_, idxName, H5P_DEFAULT)){
     //        generateWholeExp(bin_size_, n_thread_);
     //    }
-    whole_exp_dataset_id_ = H5Dopen(file_id_, idxName, H5P_DEFAULT);
+    whole_exp_dataset_id_ = H5Dopen(file_id_, idxName.c_str(), H5P_DEFAULT);
     if (whole_exp_dataset_id_ < 0) {
         cerr << "failed open wholeExp dataset: " << idxName << endl;
         return;
@@ -465,12 +470,11 @@ Gene *BgefReader::getGene() {
     if (genes_ != nullptr) return genes_;
 
     hid_t memtype, strtype;
-
     strtype = H5Tcopy(H5T_C_S1);
     H5Tset_size(strtype, 64);
 
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(memtype, "gene", HOFFSET(Gene, gene), strtype);
+    H5Tinsert(memtype, omics_t_.c_str(), HOFFSET(Gene, gene), strtype);
     H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
 

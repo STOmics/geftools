@@ -90,6 +90,7 @@ class GEFTOOLS_API CgefReader {
     int m_bordercnt = 0;
     bool m_bexon = false;
     bool isOldCellExpVersion = false;
+    std::string omics_t_ = "";
 
   public:
     explicit CgefReader(const string &filename, bool verbose = false);

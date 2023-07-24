@@ -121,9 +121,18 @@ void bgefCreater::getStereoData(const string &strin, int maskbin, const string &
 void bgefCreater::readbgef(const string &strin) {
     timer st(__FUNCTION__);
     hid_t file_id = H5Fopen(strin.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-
+    if (file_id < 0) {
+        log_info << "open bgef file error. ";
+        reportErrorCode2File(errorCode::E_FILEOPENERROR, "open bgef file error. ");
+        return;
+    }
+    omics_t_ = getOmicsName(file_id);
+    if (omics_t_.empty()) {
+        log_info << "can not get omics type, please check file. ";
+        return;
+    }
     hsize_t dims[1];
-    hid_t gene_did = H5Dopen(file_id, "/geneExp/bin1/gene", H5P_DEFAULT);
+    hid_t gene_did = H5Dopen(file_id, util::Format("/{0}Exp/bin1/{1}", omics_t_, omics_t_).c_str(), H5P_DEFAULT);
     hid_t gene_sid = H5Dget_space(gene_did);
     H5Sget_simple_extent_dims(gene_sid, dims, nullptr);
 
@@ -134,7 +143,7 @@ void bgefCreater::readbgef(const string &strin) {
     H5Tset_size(strtype, 64);
 
     genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
+    H5Tinsert(genememtype, omics_t_.c_str(), HOFFSET(Gene, gene), strtype);
     H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
     H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
     H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
@@ -142,7 +151,7 @@ void bgefCreater::readbgef(const string &strin) {
     H5Sclose(gene_sid);
     H5Dclose(gene_did);
 
-    hid_t exp_did = H5Dopen(file_id, "/geneExp/bin1/expression", H5P_DEFAULT);
+    hid_t exp_did = H5Dopen(file_id, util::Format("/{0}Exp/bin1/expression", omics_t_).c_str(), H5P_DEFAULT);
     hid_t exp_sid = H5Dget_space(exp_did);
     H5Sget_simple_extent_dims(exp_sid, dims, nullptr);
 
@@ -157,10 +166,10 @@ void bgefCreater::readbgef(const string &strin) {
     m_expPtr = (Expression *)calloc(dims[0], sizeof(Expression));
     H5Dread(exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_expPtr);
 
-    if (H5Lexists(file_id, "/geneExp/bin1/exon", H5P_DEFAULT) > 0) {
+    if (H5Lexists(file_id, util::Format("/{0}Exp/bin1/exon", omics_t_).c_str(), H5P_DEFAULT) > 0) {
         m_bexon = true;
         hsize_t edims[1];
-        hid_t did = H5Dopen(file_id, "/geneExp/bin1/exon", H5P_DEFAULT);
+        hid_t did = H5Dopen(file_id, util::Format("/{0}Exp/bin1/exon", omics_t_).c_str(), H5P_DEFAULT);
         hid_t sid = H5Dget_space(did);
         H5Sget_simple_extent_dims(sid, edims, nullptr);
         // assert(edims[0] == m_geneexpcnt);
@@ -193,10 +202,12 @@ void bgefCreater::readbgef(const string &strin) {
     if (H5Aexists(file_id, "omics")) {
         hid_t fattr = H5Aopen(file_id, "omics", H5P_DEFAULT);
         H5Aread(fattr, strtype, m_szomics);
+        H5Aclose(fattr);
     }
     H5Tclose(strtype);
     H5Fclose(file_id);
-    printf("gene:%ld geneexp:%ld\n", m_genencnt, m_geneexpcnt);
+    // printf("gene:%ld geneexp:%ld\n", m_genencnt, m_geneexpcnt);
+    log_info << m_genencnt << m_geneexpcnt;
     int x_len = (m_max_x - m_min_x) / m_bin * m_bin + 1;
     int y_len = (m_max_y - m_min_y) / m_bin * m_bin + 1;
     // assert(x_len == m_outimg.cols && y_len == m_outimg.rows);
@@ -219,7 +230,11 @@ void bgefCreater::readgem(const string &strin) {
                 offset_y = stoi(line.substr(9));
             continue;
         }
-        if (line.substr(0, 6) == "geneID") break;
+        if (line.substr(0, 6) == "geneID") {
+            omics_t_ = "gene";
+        } else if (line.substr(0, 9) == "proteinID") {
+            omics_t_ = "protein";
+        }
     }
 
     int col = 1;
@@ -367,7 +382,7 @@ void bgefCreater::writebgef(vector<Gene> &vgene, vector<Expression> &vgExp, vect
     timer st(__FUNCTION__);
     // gene exp
     hid_t file_id = H5Fcreate(strout.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t gene_exp = H5Gcreate(file_id, "geneExp", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t gene_exp = H5Gcreate(file_id, util::Format("{0}Exp", omics_t_).c_str(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     hid_t gene_exp_bin1 = H5Gcreate(gene_exp, "bin1", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     hsize_t dims[1] = {vgExp.size()};
     hid_t memtype = H5Tcreate(H5T_COMPOUND, sizeof(Expression));
@@ -394,15 +409,15 @@ void bgefCreater::writebgef(vector<Gene> &vgene, vector<Expression> &vgExp, vect
     hid_t str32_type = H5Tcopy(H5T_C_S1);
     H5Tset_size(str32_type, 32);
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(memtype, "gene", HOFFSET(Gene, gene), str32_type);
+    H5Tinsert(memtype, omics_t_.c_str(), HOFFSET(Gene, gene), str32_type);
     H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
     filetype = H5Tcreate(H5T_COMPOUND, 32 + 4 + 4);
-    H5Tinsert(filetype, "gene", 0, str32_type);
+    H5Tinsert(filetype, omics_t_.c_str(), 0, str32_type);
     H5Tinsert(filetype, "offset", 32, H5T_STD_U32LE);
     H5Tinsert(filetype, "count", 32 + 4, H5T_STD_U32LE);
     dims[0] = vgene.size();
-    hid_t gene_did = h5DatasetWrite(gene_exp_bin1, filetype, memtype, "gene", 1, dims, vgene.data());
+    hid_t gene_did = h5DatasetWrite(gene_exp_bin1, filetype, memtype, omics_t_.c_str(), 1, dims, vgene.data());
     H5Tclose(memtype);
     H5Tclose(filetype);
     H5Dclose(gene_did);

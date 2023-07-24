@@ -30,6 +30,7 @@ class GEFTOOLS_API CgefWriter {
     explicit CgefWriter(bool verbose = false);
     ~CgefWriter();
 
+    void setOmicsType(const string &omics);
     void setOutput(const string &output_cell_gef);
     void setInput(const string &input_cell_gef);
 
@@ -120,6 +121,8 @@ class GEFTOOLS_API CgefWriter {
     CellData *m_cdataPtr = nullptr;
     int m_allocat = 2;
     int m_blknum[2];
+    std::string omics_t_ = "";
+    std::string uomics_t_ = "";
 
     // CellAttr cell_attr_ = {
     //     .average_gene_count=0.0,

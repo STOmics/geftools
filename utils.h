@@ -20,6 +20,7 @@
 #include "hdf5.h"
 #include "opencv2/opencv.hpp"
 #include "tiffio.h"
+#include "Format.h"
 
 #ifdef _WIN32
 #define GEFTOOLS_API __declspec(dllexport)

@@ -21,6 +21,8 @@ void reportErrorCode2File(const char *errCode, const char *errMsg) {
     }
 }
 
+void PrintLog(const std::string &content) { std::cout << content << std::endl; }
+
 S32 getStrfTime() {
     time_t timep;
     time(&timep);
@@ -175,8 +177,33 @@ bool is_cgef(string &filename) {
 
 bool is_bgef(string &filename) {
     hid_t file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "not h5 file. ";
+        return false;
+    }
+    std::string omics_type {""};
+    std::string omics_name {""};
+    if (H5Aexists(file_id, "omics")) {
+        hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics_type.append(szbuf);
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        log_info << "can not find omics type. please check file. ";
+        return false;
+    }
+    if (omics_type == "Transcriptomics") {
+        omics_name = "gene";
+    } else {
+        omics_name = "protein";
+    }
+    
     bool is_b = false;
-    if (H5Lexists(file_id, "geneExp", H5P_DEFAULT)) is_b = true;
+    if (H5Lexists(file_id, util::Format("{0}Exp", omics_name).c_str(), H5P_DEFAULT)) is_b = true;
     H5Fclose(file_id);
     return is_b;
 }

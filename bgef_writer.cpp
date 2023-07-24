@@ -8,15 +8,27 @@
 BgefWriter::BgefWriter(const string& output_filename, bool verbose, bool bexon, const string& stromics) {
     str32_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str32_type_, 32);
-
     str64_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str64_type_, 64);
+
+    if (stromics == "Transcriptomics") {
+        omics_t_ = "gene";
+        uomics_t_ = "Gene";
+    } else {
+        omics_t_ = "protein";
+        uomics_t_ = "Protein";
+    }
 
     hid_t fapl = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_fclose_degree(fapl, H5F_CLOSE_STRONG);
 
-    cerr << "create h5 file: " << output_filename << endl;
+    cerr << "create bgef file: " << output_filename << endl;
     file_id_ = H5Fcreate(output_filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+    if (file_id_ < 0) {
+        log_info << "create bgef file error. ";
+        reportErrorCode2File(errorCode::E_FILEOPENERROR, "create bgef file error. ");
+        exit(1);
+    }
 
     verbose_ = verbose;
     m_bexon = bexon;
@@ -44,7 +56,8 @@ BgefWriter::BgefWriter(const string& output_filename, bool verbose, bool bexon, 
     H5Sclose(k_did);
     H5Aclose(k_attr);
 
-    gene_exp_group_id_ = H5Gcreate(file_id_, "geneExp", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    std::string exp_group = omics_t_ + "Exp";
+    gene_exp_group_id_ = H5Gcreate(file_id_, exp_group.c_str(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     whole_exp_group_id_ = H5Gcreate(file_id_, "wholeExp", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     if (m_bexon) {
         m_wholeExpExon_id = H5Gcreate(file_id_, "wholeExpExon", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -63,7 +76,6 @@ void BgefWriter::SetGefArea(float& area) {
 BgefWriter::BgefWriter(const string& output_filename, unsigned int raw_gef_version) {
     str32_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str32_type_, 32);
-
     str64_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str64_type_, 64);
 
@@ -101,9 +113,10 @@ BgefWriter::~BgefWriter() {
 
 bool BgefWriter::storeGene(vector<Expression>& exps, vector<Gene>& genes, DnbAttr& dnbAttr, unsigned int maxexp,
                            int binsize) {
-    char buf[32] = {0};
-    sprintf(buf, "bin%d", binsize);
-    hid_t gene_exp_bin_group_id = H5Gcreate(gene_exp_group_id_, buf, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    // char buf[32] = {0};
+    // sprintf(buf, "bin%d", binsize);
+    std::string buf = util::Format("bin{0}", binsize);
+    hid_t gene_exp_bin_group_id = H5Gcreate(gene_exp_group_id_, buf.c_str(), H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     // Create expression compound
     int rank = 1;
@@ -159,19 +172,19 @@ bool BgefWriter::storeGene(vector<Expression>& exps, vector<Gene>& genes, DnbAtt
 
     // Create gene compound
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(memtype, "gene", HOFFSET(Gene, gene), str64_type_);
+    H5Tinsert(memtype, omics_t_.c_str(), HOFFSET(Gene, gene), str64_type_);
     H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
 
     filetype = H5Tcreate(H5T_COMPOUND, 64 + 4 + 4);
-    H5Tinsert(filetype, "gene", 0, str64_type_);
+    H5Tinsert(filetype, omics_t_.c_str(), 0, str64_type_);
     H5Tinsert(filetype, "offset", 64, H5T_STD_U32LE);
     H5Tinsert(filetype, "count", 64 + 4, H5T_STD_U32LE);
 
     dims[0] = genes.size();
     dataspace_id = H5Screate_simple(rank, dims, nullptr);
-    dataset_id =
-        H5Dcreate(gene_exp_bin_group_id, "gene", filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate(gene_exp_bin_group_id, omics_t_.c_str(), filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT,
+                           H5P_DEFAULT);
     H5Dwrite(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &genes[0]);
 
     // Create gene attribute
@@ -191,9 +204,11 @@ bool BgefWriter::storeGene(vector<Expression>& exps, vector<Gene>& genes, DnbAtt
 
 bool BgefWriter::storeGeneExon(vector<Expression>& exps, unsigned int maxexon, int binsize) {
     if (!m_bexon) return false;
-    char buf[32] = {0};
-    sprintf(buf, "bin%d", binsize);
-    hid_t gene_exp_bin_group_id = H5Gopen(gene_exp_group_id_, buf, H5P_DEFAULT);
+
+    // char buf[32] = {0};
+    // sprintf(buf, "bin%d", binsize);
+    std::string buf = util::Format("bin{0}", binsize);
+    hid_t gene_exp_bin_group_id = H5Gopen(gene_exp_group_id_, buf.c_str(), H5P_DEFAULT);
 
     hsize_t dims[1] = {exps.size()};
     hid_t dataspace_id = H5Screate_simple(1, dims, nullptr);
@@ -230,31 +245,32 @@ bool BgefWriter::storeDnb(DnbMatrix& dnb_matrix, int binsize) {
     // Add compound dataset
     hid_t memtype, filetype;
 
+    std::string gene_cnt = omics_t_ + "count";
     if (binsize == 1) {
         memtype = H5Tcreate(H5T_COMPOUND, sizeof(BinStatUS));
         H5Tinsert(memtype, "MIDcount", HOFFSET(BinStatUS, mid_count), H5T_NATIVE_USHORT);
-        H5Tinsert(memtype, "genecount", HOFFSET(BinStatUS, gene_count), H5T_NATIVE_USHORT);
+        H5Tinsert(memtype, gene_cnt.c_str(), HOFFSET(BinStatUS, gene_count), H5T_NATIVE_USHORT);
 
         filetype = H5Tcreate(H5T_COMPOUND, 4);
         H5Tinsert(filetype, "MIDcount", 0, H5T_STD_U16LE);
-        H5Tinsert(filetype, "genecount", 2, H5T_STD_U16LE);
+        H5Tinsert(filetype, gene_cnt.c_str(), 2, H5T_STD_U16LE);
     } else {
         memtype = H5Tcreate(H5T_COMPOUND, sizeof(BinStat));
         H5Tinsert(memtype, "MIDcount", HOFFSET(BinStat, mid_count), H5T_NATIVE_UINT);
-        H5Tinsert(memtype, "genecount", HOFFSET(BinStat, gene_count), H5T_NATIVE_USHORT);
+        H5Tinsert(memtype, gene_cnt.c_str(), HOFFSET(BinStat, gene_count), H5T_NATIVE_USHORT);
 
         if (dnb_matrix.dnb_attr.max_mid > USHRT_MAX) {
             filetype = H5Tcreate(H5T_COMPOUND, 6);
             H5Tinsert(filetype, "MIDcount", 0, H5T_STD_U32LE);
-            H5Tinsert(filetype, "genecount", 4, H5T_STD_U16LE);
+            H5Tinsert(filetype, gene_cnt.c_str(), 4, H5T_STD_U16LE);
         } else if (dnb_matrix.dnb_attr.max_mid > UCHAR_MAX) {
             filetype = H5Tcreate(H5T_COMPOUND, 4);
             H5Tinsert(filetype, "MIDcount", 0, H5T_STD_U16LE);
-            H5Tinsert(filetype, "genecount", 2, H5T_STD_U16LE);
+            H5Tinsert(filetype, gene_cnt.c_str(), 2, H5T_STD_U16LE);
         } else {
             filetype = H5Tcreate(H5T_COMPOUND, 3);
             H5Tinsert(filetype, "MIDcount", 0, H5T_STD_U8LE);
-            H5Tinsert(filetype, "genecount", 1, H5T_STD_U16LE);
+            H5Tinsert(filetype, gene_cnt.c_str(), 1, H5T_STD_U16LE);
         }
     }
 
@@ -264,12 +280,13 @@ bool BgefWriter::storeDnb(DnbMatrix& dnb_matrix, int binsize) {
     dims[0] = x_len;
     dims[1] = y_len;
 
-    char dataName[32] = {0};
-    sprintf(dataName, "bin%d", binsize);
+    // char dataName[32] = {0};
+    // sprintf(dataName, "bin%d", binsize);
+    std::string dataName = util::Format("bin{0}", binsize);
     // printf("%s %lld\n",dataName, (unsigned long)(y_len)*x_len);
     hid_t dataspace_id = H5Screate_simple(2, dims, nullptr);
     hid_t dataset_id =
-        H5Dcreate(whole_exp_group_id_, dataName, filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        H5Dcreate(whole_exp_group_id_, dataName.c_str(), filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
     if (binsize == 1)
         H5Dwrite(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, dnb_matrix.pmatrix_us);
@@ -292,7 +309,8 @@ bool BgefWriter::storeDnb(DnbMatrix& dnb_matrix, int binsize) {
     H5Awrite(attr, H5T_NATIVE_INT, &len_y);
     attr = H5Acreate(dataset_id, "maxMID", H5T_STD_U32LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
     H5Awrite(attr, H5T_NATIVE_UINT, &dnb_matrix.dnb_attr.max_mid);
-    attr = H5Acreate(dataset_id, "maxGene", H5T_STD_U32LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+    std::string max_gene_name = "max" + uomics_t_;
+    attr = H5Acreate(dataset_id, max_gene_name.c_str(), H5T_STD_U32LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
     H5Awrite(attr, H5T_NATIVE_UINT, &dnb_matrix.dnb_attr.max_gene);
     attr = H5Acreate(dataset_id, "number", H5T_STD_U64LE, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
     H5Awrite(attr, H5T_NATIVE_ULONG, &dnb_matrix.dnb_attr.number);
@@ -356,17 +374,18 @@ bool BgefWriter::storeStat(vector<GeneStat>& geneStat) const {
 
     hid_t memtype, filetype;
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(GeneStat));
-    H5Tinsert(memtype, "gene", HOFFSET(GeneStat, gene), str64_type_);
+    H5Tinsert(memtype, omics_t_.c_str(), HOFFSET(GeneStat, gene), str64_type_);
     H5Tinsert(memtype, "MIDcount", HOFFSET(GeneStat, mid_count), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "E10", HOFFSET(GeneStat, E10), H5T_NATIVE_FLOAT);
 
     filetype = H5Tcreate(H5T_COMPOUND, 64 + 4 + 4);
-    H5Tinsert(filetype, "gene", 0, str64_type_);
+    H5Tinsert(filetype, omics_t_.c_str(), 0, str64_type_);
     H5Tinsert(filetype, "MIDcount", 64, H5T_STD_U32LE);
     H5Tinsert(filetype, "E10", 64 + 4, H5T_IEEE_F32LE);
 
     hid_t dataspace_id = H5Screate_simple(rank, dims, nullptr);
-    hid_t dataset_id = H5Dcreate(group_id, "gene", filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dataset_id =
+        H5Dcreate(group_id, omics_t_.c_str(), filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     H5Dwrite(dataset_id, filetype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &geneStat[0]);
 
     // Create gene stat attribute
@@ -455,19 +474,19 @@ void BgefWriter::StoreRawGef(Expression* exps, unsigned int exp_size, Expression
 
     // Create gene compound
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(memtype, "gene", HOFFSET(Gene, gene), str64_type_);
+    H5Tinsert(memtype, omics_t_.c_str(), HOFFSET(Gene, gene), str64_type_);
     H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
 
     filetype = H5Tcreate(H5T_COMPOUND, 64 + 4 + 4);
-    H5Tinsert(filetype, "gene", 0, str64_type_);
+    H5Tinsert(filetype, omics_t_.c_str(), 0, str64_type_);
     H5Tinsert(filetype, "offset", 64, H5T_STD_U32LE);
     H5Tinsert(filetype, "count", 64 + 4, H5T_STD_U32LE);
 
     dims[0] = gene_cnt;
     dataspace_id = H5Screate_simple(rank, dims, nullptr);
-    dataset_id =
-        H5Dcreate(gene_exp_bin_group_id, "gene", filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    dataset_id = H5Dcreate(gene_exp_bin_group_id, omics_t_.c_str(), filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT,
+                           H5P_DEFAULT);
     H5Dwrite(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, genes);
 
     // Create gene attribute

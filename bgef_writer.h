@@ -27,6 +27,8 @@ class GEFTOOLS_API BgefWriter {
     bool verbose_ = false;
     bool m_bexon = false;
     bool raw_gef_ = false;
+    std::string omics_t_ = "";
+    std::string uomics_t_ = "";
 
   public:
     BgefWriter(const string &output_filename, bool verbose, bool bexon, const string &stromics);

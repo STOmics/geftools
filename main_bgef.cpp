@@ -31,7 +31,7 @@ int bgef(int argc, char *argv[]) {
         "s,stat", "create stat group", cxxopts::value<bool>()->default_value("true"))(
         "O,omics", "input omics [request]", cxxopts::value<std::string>()->default_value("Transcriptomics"), "STR")(
         "v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
-        // ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
+        ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
         ("help", "Print help");
 
     auto result = options.parse(argc, argv);
@@ -42,9 +42,9 @@ int bgef(int argc, char *argv[]) {
         exit(1);
     }
 
-    // if (result.count("errorCode-file") == 1) {
-    //     errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
-    // }
+    if (result.count("errorCode-file") == 1) {
+        errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
+    }
 
     if (result.count("input-file") != 1) {
         std::cout << "[ERROR] The -i,--input-file parameter must be given correctly.\n" << std::endl;
@@ -109,7 +109,6 @@ int bgef(int argc, char *argv[]) {
     opts->m_stromics = result["omics"].as<string>();
 
     gem2gef(opts);
-    //    generateBgef(opts.output_file, opts.input_file, opts.verbose);
     return 0;
 }
 
@@ -155,11 +154,14 @@ void gem2gef(BgefOptions *opts) {
 
     unsigned int resolution;
     float gef_area;
-    // int dnb_max_x, dnb_max_y;
+
     if (!H5Fis_hdf5(opts->input_file_.c_str())) {
         mRead(opts);
         resolution = parseResolutin(opts->input_file_);
     } else {
+        if (!ParseOmicsType(opts->input_file_, opts->m_stromics)) {
+            return;
+        }
         BgefReader bgef_reader(opts->input_file_, 1, opts->verbose_);
         ExpressionAttr expression_attr = bgef_reader.getExpressionAttr();
         gef_area = bgef_reader.gef_area_;
@@ -170,9 +172,6 @@ void gem2gef(BgefOptions *opts) {
             opts->range_ = {expression_attr.min_x, expression_attr.max_x, expression_attr.min_y, expression_attr.max_y};
             opts->offset_x_ = expression_attr.min_x;
             opts->offset_y_ = expression_attr.min_y;
-
-            // dnb_max_x = expression_attr.max_x;
-            // dnb_max_y = expression_attr.max_y;
 
         } else {
             bgef_reader.getGeneExpression(opts->map_gene_exp_, opts->region_);
@@ -212,10 +211,8 @@ void gem2gef(BgefOptions *opts) {
         auto &range = opts->range_;
 
         dnbAttr.min_x = (opts->offset_x_ / bin) * bin;
-        // dnbAttr.len_x = (range[1] / bin - range[0] / bin) + 1;
         dnbAttr.len_x = (range[1] / bin) + 1;
         dnbAttr.min_y = (opts->offset_y_ / bin) * bin;
-        // dnbAttr.len_y = (range[3] / bin - range[2] / bin) + 1;
         dnbAttr.len_y = (range[3] / bin) + 1;
 
         dnbAttr.max_x = (opts->range_[1] / bin) * bin;
@@ -320,6 +317,7 @@ void gem2gef(BgefOptions *opts) {
 
         thpool.waitTaskDone();
         opts->m_genes_queue.clear(bin);
+
         // write dnb
         writednb(opts, bgef_writer, bin);
 
@@ -364,7 +362,23 @@ int mRead(BgefOptions *opts)  // 多线程读
                 opts->offset_y_ = stoi(line.substr(9));
             continue;
         }
-        if (line.substr(0, 6) == "geneID") break;
+        if (line.substr(0, 6) == "geneID") {
+            if (opts->m_stromics == "Transcriptomics") {
+                break;
+            } else {
+                log_info << "Input omics error, using omics type by gem file. ";
+                opts->m_stromics = "Transcriptomics";
+                break;
+            }
+        } else if (line.substr(0, 9) == "proteinID") {
+            if (opts->m_stromics == "Proteomics") {
+                break;
+            } else {
+                log_info << "Input omics error, using omics type by gem file. ";
+                opts->m_stromics = "Proteomics";
+                break;
+            }
+        }
     }
 
     int col = 1;
@@ -395,10 +409,6 @@ int mRead(BgefOptions *opts)  // 多线程读
         }
     }
     gzclose(opts->infile_);
-
-    // consistent with the raw gef offset
-    // opts->range_[0] = opts->offset_x_;
-    // opts->range_[2] = opts->offset_y_;
 
     // Subtract min value of coordinates
     // int minx = opts->range_[0];

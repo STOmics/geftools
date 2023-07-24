@@ -54,6 +54,7 @@ class GEFTOOLS_API BgefReader {
     void buildCellInfo();
     void buildCellInfo2();
     bool m_bexon = false;
+    std::string omics_t_ = "";
 
   public:
     float gef_area_;
@@ -61,6 +62,7 @@ class GEFTOOLS_API BgefReader {
   public:
     BgefReader(const string &filename, int bin_size, int n_thread = 1, bool verbose = false);
     virtual ~BgefReader();
+    
     int getVersion() const;
     int getBinSize() const;
     unsigned int getGeneNum() const;

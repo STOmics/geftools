@@ -42,7 +42,7 @@ int cgef(int argc, char *argv[]) {
         "g,raw-gem", "raw gem file", cxxopts::value<std::string>(), "FILE")("p,patch", "Create 3d group patch",
                                                                             cxxopts::value<int>()->default_value("0"))(
         "O,omics", "input omics [request]", cxxopts::value<std::string>()->default_value("Transcriptomics"), "STR")
-        // ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
+        ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
         ("help", "Print help");
 
     auto result = options.parse(argc, argv);
@@ -53,9 +53,9 @@ int cgef(int argc, char *argv[]) {
         exit(1);
     }
 
-    // if (result.count("errorCode-file") == 1) {
-    //     errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
-    // }
+    if (result.count("errorCode-file") == 1) {
+        errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
+    }
 
     if (result.count("input-file") != 1) {
         std::cerr << "[ERROR] The -i,--input-file parameter must be given correctly.\n" << std::endl;
@@ -72,7 +72,8 @@ int cgef(int argc, char *argv[]) {
     }
 
     if (result.count("output-file") != 1) {
-        cgefParam::GetInstance()->m_outputstr = "";
+        std::cerr << "[ERROR] The -o,--output-file parameter must be given correctly.\n" << std::endl;
+        std::cerr << options.help() << std::endl;
     } else {
         cgefParam::GetInstance()->m_outputstr = result["output-file"].as<string>();
     }
@@ -81,12 +82,6 @@ int cgef(int argc, char *argv[]) {
         cgefParam::GetInstance()->m_rawgemstr = "";
     } else {
         cgefParam::GetInstance()->m_rawgemstr = result["raw-gem"].as<string>();
-    }
-
-    if (result.count("omics") != 1) {
-        cgefParam::GetInstance()->has_omics_ = false;
-    } else {
-        cgefParam::GetInstance()->has_omics_ = true;
     }
 
     int rand_celltype_num = result["rand-celltype"].as<int>();
@@ -114,7 +109,7 @@ int cgef(int argc, char *argv[]) {
         generateCgef(cgefParam::GetInstance()->m_outputstr, cgefParam::GetInstance()->m_inputstr,
                      cgefParam::GetInstance()->m_maskstr, cgefParam::GetInstance()->m_block_size, rand_celltype_num);
     } else if (patch == 2) {
-        if (!cgefParam::GetInstance()->has_omics_) {
+        if (result.count("omics") != 1) {
             std::cerr << "The -O,--omics parameter must be given. no omics information." << std::endl;
             reportErrorCode2File(errorCode::E_INVALIDPARAM,
                                  "The -O,--omics parameter must be given. no omics information.");
@@ -130,6 +125,9 @@ int cgef(int argc, char *argv[]) {
 int generateCgef(const string &cgef_file, const string &bgef_file, const string &mask_file, const int *block_size,
                  int rand_celltype_num, bool verbose) {
     unsigned long cprev = clock();
+    if (!ParseOmicsType(bgef_file, cgefParam::GetInstance()->stromics_)) {
+        return 1;
+    }
     CgefWriter cgef_writer(verbose);
     cgef_writer.setOutput(cgef_file);
     cgef_writer.setRandomCellTypeNum(rand_celltype_num);
@@ -198,9 +196,18 @@ void AddClusterId4Cgef(const string &input_file, const string &output_file, cons
     H5Pset_libver_bounds(fapl_id, H5F_LIBVER_V18, H5F_LIBVER_LATEST);
     H5Pset_fclose_degree(fapl_id, H5F_CLOSE_STRONG);
     hid_t file_id = H5Fopen(output_file.c_str(), H5F_ACC_RDWR, fapl_id);
+    if (file_id < 0) {
+        log_info << "can not open gef file. please check file. ";
+        return;
+    }
+    std::string omics_t = getOmicsName(file_id);
+    if (omics_t.empty()) {
+        log_info << "error : can not get omics type, please check file. ";
+        return;
+    }
     hid_t group_id = H5Gopen(file_id, "/cellBin", H5P_DEFAULT);
     hid_t cell_dataset_id = H5Dopen(group_id, "cell", H5P_DEFAULT);
-    hid_t memtype = getMemtypeOfCellData();
+    hid_t memtype = getMemtypeOfCellData(omics_t);
     H5Dwrite(cell_dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_array);
 
     H5Tclose(memtype);

@@ -321,11 +321,13 @@ struct GEFTOOLS_API ClusterPosition {
     int y;
 };
 
-hid_t getMemtypeOfGeneData();
+hid_t getMemtypeOfGeneData(const std::string &omics);
 hid_t getMemtypeOfGeneExpData();
-hid_t getMemtypeOfCellData();
-hid_t getMemtypeOfCellExpData();
-hid_t getMemtypeOfOlderCellExpData();
+hid_t getMemtypeOfCellData(const std::string &omics);
+hid_t getMemtypeOfCellExpData(const std::string &omics);
+hid_t getMemtypeOfOlderCellExpData(const std::string &omics);
 bool isOlderCellExpDataVersion(hid_t fileId);
+std::string getOmicsName(hid_t file_id);
+bool ParseOmicsType(const std::string &bgef_file, std::string &omics);
 
 #endif  // GEFTOOLS_GEF_H

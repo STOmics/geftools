@@ -25,6 +25,19 @@ int main(int argc, const char *argv[]) {
     time_t prev;
     time(&prev);
 
+    // BgefReader protein_info("/ldfssz1/ST_BIOINTEL/P20Z10200N0039/wanruiwen/data/raw_gef/SS200000563BL_D4.raw.gef", 1);
+    // ExpressionAttr &protein_exp_attr = protein_info.getExpressionAttr();
+    // Expression *protein_exp_data = protein_info.getExpression();
+    // Gene *protein_genes = protein_info.getGene();
+    // unsigned int *protein_exons = protein_info.getGeneExon();
+    // unsigned int protein_exp_count = protein_info.getExpressionNum();
+
+    // BgefWriter protein_gef_writer("/ldfssz1/ST_BIOINTEL/P20Z10200N0039/wanruiwen/data/raw_gef/SS200000563BL_D4.protein.gef",
+    //                               false, false, "xxx");
+    // protein_gef_writer.StoreRawGef(protein_exp_data, protein_exp_count, protein_exp_attr, protein_genes,
+    //                                protein_info.getGeneNum(), protein_exons, protein_info.getGeneExonAttr());
+    // return 0;
+    
     // MergeProteinAndRnaMatrices("/jdfssz1/ST_BIGDATA/Stereomics_TestData/debug_tmp/stereotools_test/20221112_cellbin/02.count/SS200000135TL_D1.raw.gef",
     // "/jdfssz1/ST_BIGDATA/Stereomics_TestData/debug_tmp/stereotools_test/20221113_1g/02.count/SS200000135TL_D1.raw.gef",
     // "./protein.gef",

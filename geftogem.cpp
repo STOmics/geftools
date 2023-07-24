@@ -19,10 +19,11 @@ geftogem::geftogem(const string &strout, const string &strsn, bool outexon) :
 geftogem::~geftogem() {}
 
 void geftogem::getBgefGene(hid_t file_id) {
-    char buf[128] = {0};
-    sprintf(buf, "/geneExp/bin%d/gene", m_bin);
+    // char buf[128] = {0};
+    // sprintf(buf, "/geneExp/bin%d/gene", m_bin);
     hsize_t dims[1];
-    hid_t gene_did = H5Dopen(file_id, buf, H5P_DEFAULT);
+    hid_t gene_did =
+        H5Dopen(file_id, util::Format("/{0}Exp/bin{1}/{2}", omics_t_, m_bin, omics_t_).c_str(), H5P_DEFAULT);
     hid_t gene_sid = H5Dget_space(gene_did);
     H5Sget_simple_extent_dims(gene_sid, dims, nullptr);
 
@@ -33,7 +34,7 @@ void geftogem::getBgefGene(hid_t file_id) {
     H5Tset_size(strtype, 64);
 
     genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
+    H5Tinsert(genememtype, omics_t_.c_str(), HOFFSET(Gene, gene), strtype);
     H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
     H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
     H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
@@ -44,10 +45,10 @@ void geftogem::getBgefGene(hid_t file_id) {
 }
 
 void geftogem::getBgefExp(hid_t file_id) {
-    char buf[128] = {0};
-    sprintf(buf, "/geneExp/bin%d/expression", m_bin);
+    // char buf[128] = {0};
+    // sprintf(buf, "/geneExp/bin%d/expression", m_bin);
     hsize_t dims[1];
-    hid_t exp_did = H5Dopen(file_id, buf, H5P_DEFAULT);
+    hid_t exp_did = H5Dopen(file_id, util::Format("/{0}Exp/bin{1}/expression", omics_t_, m_bin).c_str(), H5P_DEFAULT);
     hid_t exp_sid = H5Dget_space(exp_did);
     H5Sget_simple_extent_dims(exp_sid, dims, nullptr);
 
@@ -62,12 +63,12 @@ void geftogem::getBgefExp(hid_t file_id) {
     m_expPtr = (Expression *)malloc(dims[0] * sizeof(Expression));
     H5Dread(exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_expPtr);
 
-    int l = sprintf(buf, "/geneExp/bin%d/exon", m_bin);
-    buf[l] = '\0';
-    if (H5Lexists(file_id, buf, H5P_DEFAULT) > 0) {
+    // int l = sprintf(buf, "/geneExp/bin%d/exon", m_bin);
+    // buf[l] = '\0';
+    if (H5Lexists(file_id, util::Format("/{0}Exp/bin{1}/exon", omics_t_, m_bin).c_str(), H5P_DEFAULT) > 0) {
         m_bexon = true;
         hsize_t edims[1];
-        hid_t did = H5Dopen(file_id, buf, H5P_DEFAULT);
+        hid_t did = H5Dopen(file_id, util::Format("/{0}Exp/bin{1}/exon", omics_t_, m_bin).c_str(), H5P_DEFAULT);
         hid_t sid = H5Dget_space(did);
         H5Sget_simple_extent_dims(sid, edims, nullptr);
         assert(edims[0] == m_geneexpcnt);
@@ -91,7 +92,7 @@ void geftogem::getBgefExp(hid_t file_id) {
     H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
     attr = H5Aopen(exp_did, "resolution", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &m_resolution);
-    // printf("minx:%d miny:%d maxx:%d maxy:%d\n", m_min_x, m_min_y, m_max_x, m_max_y);
+    log_info << "minx:" << m_min_x << " miny:" << m_min_y << " maxx:" << m_max_x << " maxy:" << m_max_y;
     H5Aclose(attr);
     H5Tclose(memtype);
     H5Sclose(exp_sid);
@@ -111,7 +112,7 @@ void geftogem::bgef2gem() {
     sprintf(buf, GEM_HEADER, 0, 1, m_bin, m_strsn.c_str(), m_min_x, m_min_y);
 
     if (m_bexon && m_boutexon) {
-        sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\n";
+        sstrout << buf << omics_t_ << "ID\tx\ty\tMIDCount\tExonCount\n";
         *pout << sstrout.str();
         for (uint32_t i = 0; i < m_genencnt; ++i) {
             sstrout.clear();
@@ -124,7 +125,7 @@ void geftogem::bgef2gem() {
             *pout << sstrout.str();
         }
     } else {
-        sstrout << buf << "geneID\tx\ty\tMIDCount\n";
+        sstrout << buf << omics_t_ << "ID\tx\ty\tMIDCount\n";
         *pout << sstrout.str();
         for (uint32_t i = 0; i < m_genencnt; ++i) {
             sstrout.clear();
@@ -185,6 +186,12 @@ void geftogem::getdnb() {
 
 void geftogem::readBgef(const string &strinput) {
     hid_t file_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "can not open gef file. please check file. ";
+        return;
+    }
+    omics_t_ = getOmicsName(file_id);
+
     getBgefGene(file_id);
     getBgefExp(file_id);
     H5Fclose(file_id);
@@ -199,7 +206,7 @@ void geftogem::readCgef(const string &strinput) {
     H5Sget_simple_extent_dims(cell_sid, dims, nullptr);
 
     m_cellcnt = dims[0];
-    hid_t memtype = getMemtypeOfCellData();
+    hid_t memtype = getMemtypeOfCellData(omics_t_);
     CellData *cell_arrayptr = new CellData[dims[0]];
     H5Dread(cell_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, cell_arrayptr);
 
@@ -306,7 +313,7 @@ void geftogem::cgef2gem() {
     stringstream sstrout;
     char buf[1024] = {0};
     sprintf(buf, GEM_HEADER, 0, 1, m_bin, m_strsn.c_str(), m_min_x, m_min_y);
-    sstrout << buf << "geneID\tx\ty\tMIDCount\tCellID\n";
+    sstrout << buf << omics_t_ << "ID\tx\ty\tMIDCount\tCellID\n";
     *pout << sstrout.str();
     uint64_t l_id = 0;
     int x, y;
@@ -348,7 +355,7 @@ void geftogem::cgef2gem_exon() {
     stringstream sstrout;
     char buf[1024] = {0};
     sprintf(buf, GEM_HEADER, 0, 1, m_bin, m_strsn.c_str(), m_min_x, m_min_y);
-    sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\tCellID\n";
+    sstrout << buf << omics_t_ << "ID\tx\ty\tMIDCount\tExonCount\tCellID\n";
     *pout << sstrout.str();
 
     uint64_t l_id = 0;

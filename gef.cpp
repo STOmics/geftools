@@ -9,14 +9,14 @@
 
 #include "utils.h"
 
-hid_t getMemtypeOfGeneData() {
+hid_t getMemtypeOfGeneData(const std::string &omics) {
     hid_t memtype;
     // hid_t str32_type_ = H5Tcopy(H5T_C_S1);
     // H5Tset_size(str32_type_, 32);
     hid_t str64_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str64_type_, 64);
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(GeneData));
-    H5Tinsert(memtype, "geneName", HOFFSET(GeneData, gene_name), str64_type_);
+    H5Tinsert(memtype, util::Format("{0}Name", omics).c_str(), HOFFSET(GeneData, gene_name), str64_type_);
     H5Tinsert(memtype, "offset", HOFFSET(GeneData, offset), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "cellCount", HOFFSET(GeneData, cell_count), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "expCount", HOFFSET(GeneData, exp_count), H5T_NATIVE_UINT);
@@ -33,14 +33,14 @@ hid_t getMemtypeOfGeneExpData() {
     return memtype;
 }
 
-hid_t getMemtypeOfCellData() {
+hid_t getMemtypeOfCellData(const std::string &omics) {
     hid_t memtype;
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(CellData));
     H5Tinsert(memtype, "id", HOFFSET(CellData, id), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "x", HOFFSET(CellData, x), H5T_NATIVE_INT);
     H5Tinsert(memtype, "y", HOFFSET(CellData, y), H5T_NATIVE_INT);
     H5Tinsert(memtype, "offset", HOFFSET(CellData, offset), H5T_NATIVE_UINT);
-    H5Tinsert(memtype, "geneCount", HOFFSET(CellData, gene_count), H5T_NATIVE_USHORT);
+    H5Tinsert(memtype, util::Format("{0}Count", omics).c_str(), HOFFSET(CellData, gene_count), H5T_NATIVE_USHORT);
     H5Tinsert(memtype, "expCount", HOFFSET(CellData, exp_count), H5T_NATIVE_USHORT);
     H5Tinsert(memtype, "dnbCount", HOFFSET(CellData, dnb_count), H5T_NATIVE_USHORT);
     H5Tinsert(memtype, "area", HOFFSET(CellData, area), H5T_NATIVE_USHORT);
@@ -51,18 +51,18 @@ hid_t getMemtypeOfCellData() {
     return memtype;
 }
 
-hid_t getMemtypeOfCellExpData() {
+hid_t getMemtypeOfCellExpData(const std::string &omics) {
     hid_t memtype;
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(CellExpData));
-    H5Tinsert(memtype, "geneID", HOFFSET(CellExpData, gene_id), H5T_NATIVE_UINT);
+    H5Tinsert(memtype, util::Format("{0}ID", omics).c_str(), HOFFSET(CellExpData, gene_id), H5T_NATIVE_UINT);
     H5Tinsert(memtype, "count", HOFFSET(CellExpData, count), H5T_NATIVE_USHORT);
     return memtype;
 }
 
-hid_t getMemtypeOfOlderCellExpData() {
+hid_t getMemtypeOfOlderCellExpData(const std::string &omics) {
     hid_t memtype;
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(olderCellExpData));
-    H5Tinsert(memtype, "geneID", HOFFSET(olderCellExpData, gene_id), H5T_NATIVE_USHORT);
+    H5Tinsert(memtype, util::Format("{0}ID", omics).c_str(), HOFFSET(olderCellExpData, gene_id), H5T_NATIVE_USHORT);
     H5Tinsert(memtype, "count", HOFFSET(olderCellExpData, count), H5T_NATIVE_USHORT);
     return memtype;
 }
@@ -82,4 +82,67 @@ bool isOlderCellExpDataVersion(hid_t fileId) {
     } else {
         return false;
     }
+}
+
+std::string getOmicsName(hid_t file_id) {
+    std::string omics_type {""};
+    std::string omics_name {""};
+    if (H5Aexists(file_id, "omics") > 0) {
+        hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics_type.append(szbuf);
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        log_info << "can not find omics type from file. using default type: Transcriptomics. ";
+        omics_name = "gene";
+        return omics_name;
+    }
+    if (omics_type == "Transcriptomics") {
+        omics_name = "gene";
+    } else {
+        omics_name = "protein";
+    }
+    return omics_name;
+}
+
+bool ParseOmicsType(const std::string &bgef_file, std::string &input_omics) {
+    hid_t file_id = H5Fopen(bgef_file.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "open bgef file error. ";
+        return false;
+    }
+    std::string omics_type {""};
+    if (H5Aexists(file_id, "omics") > 0) {
+        hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics_type.append(szbuf);
+        if (omics_type != input_omics) {
+            log_info << "\'-O\' information does not match the omics recorded in " << bgef_file
+                     << ",please check input parameter or files. ";
+            H5Aclose(f_attr);
+            H5Tclose(omics_strtype);
+            H5Fclose(file_id);
+            return false;
+        }
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        log_info << "can not find omics type from file. using default type: Transcriptomics. ";
+        omics_type = "Transcriptomics";
+        if (omics_type != input_omics) {
+            log_info << "\'-O\' information does not match the omics recorded in " << bgef_file
+                     << ",please check input parameter or files. ";
+            H5Fclose(file_id);
+            return false;
+        }
+    }
+    H5Fclose(file_id);
+    return true;
 }

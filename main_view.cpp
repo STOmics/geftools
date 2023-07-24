@@ -29,7 +29,7 @@ int view(int argc, char *argv[]) {
         // ("t,threads", "number of threads", cxxopts::value<int>()->default_value("1"), "INT")
         // ("v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
         ("e,exon", "whether or not output exon", cxxopts::value<int>()->default_value("1"), "INT")
-        // ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
+        ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
         ("help", "Print help");
 
     auto result = options.parse(argc, argv);
@@ -40,9 +40,9 @@ int view(int argc, char *argv[]) {
         exit(1);
     }
 
-    // if (result.count("errorCode-file") == 1) {
-    //     errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
-    // }
+    if (result.count("errorCode-file") == 1) {
+        errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
+    }
 
     if (result.count("input-file") != 1) {
         std::cerr << "[ERROR] The -i,--input-file parameter must be given correctly.\n" << std::endl;
