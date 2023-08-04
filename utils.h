@@ -20,6 +20,7 @@
 #include "hdf5.h"
 #include "opencv2/opencv.hpp"
 #include "tiffio.h"
+#include "Format.h"
 
 #ifdef _WIN32
 #define GEFTOOLS_API __declspec(dllexport)
@@ -31,22 +32,22 @@ using namespace std;
 // using namespace cv;
 
 const int READLEN = 256 * 1024;
-const unsigned int GEFVERSION[3] = {0, 8, 3};
+const unsigned int GEFVERSION[3] = {0, 8, 4};
 const int BORDERCNT = 32;
 
 namespace errorCode {
     extern bool isInSAWFlow;
-    const static char* E_INVALIDPARAM = "SAW-A60001";
-    const static char* E_FILEOPENERROR = "SAW-A60002";
-    const static char* E_PARSEFILEERROR = "SAW-A60003";
-    const static char* E_LOWVERSION = "SAW-A60110";
-    const static char* E_STEPERROR = "SAW-A60111";
-    const static char* E_FILEDATAERROR = "SAW-A60120";
-    const static char* E_MISSINGFILEINFO = "SAW-A60121";
-    const static char* E_FILEMISMATCH = "SAW-A60122";
-    const static char* E_CREATEFILEFAILED = "SAW-A60130";
-    const static char* E_ALLOCMEMORYFAILED = "SAW-A60140";
-    const static char* E_GENEEXPDIMDISMATCH = "SAW-A60150";
+    const static char* E_INVALIDPARAM = "SAW-A60001: ";
+    const static char* E_FILEOPENERROR = "SAW-A60002: ";
+    const static char* E_PARSEFILEERROR = "SAW-A60003: ";
+    const static char* E_LOWVERSION = "SAW-A60110: ";
+    const static char* E_STEPERROR = "SAW-A60111: ";
+    const static char* E_FILEDATAERROR = "SAW-A60120: ";
+    const static char* E_MISSINGFILEINFO = "SAW-A60121: ";
+    const static char* E_FILEMISMATCH = "SAW-A60122: ";
+    const static char* E_CREATEFILEFAILED = "SAW-A60130: ";
+    const static char* E_ALLOCMEMORYFAILED = "SAW-A60140: ";
+    const static char* E_GENEEXPDIMDISMATCH = "SAW-A60150: ";
 }  // namespace errorCode
 
 void reportErrorCode2File(const char* errCode, const char* errMsg);

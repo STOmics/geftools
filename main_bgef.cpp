@@ -38,7 +38,7 @@ int bgef(int argc, char *argv[]) {
 
     if (argc <= 1 || result.count("help")) {
         std::cout << options.help() << std::endl;
-        reportErrorCode2File(errorCode::E_INVALIDPARAM, "missing params");
+        log_error << errorCode::E_INVALIDPARAM << "missing params. ";
         exit(1);
     }
 
@@ -47,26 +47,20 @@ int bgef(int argc, char *argv[]) {
     // }
 
     if (result.count("input-file") != 1) {
-        std::cout << "[ERROR] The -i,--input-file parameter must be given correctly.\n" << std::endl;
         std::cout << options.help() << std::endl;
-        reportErrorCode2File(errorCode::E_INVALIDPARAM,
-                             "[ERROR] The -i,--input-file parameter must be given correctly.");
+        log_error << errorCode::E_INVALIDPARAM << "[ERROR] The -i,--input-file parameter must be given correctly.";
         exit(1);
     }
 
     if (result.count("output-file") != 1) {
-        std::cout << "[ERROR] The -o,--output-file parameter must be given correctly.\n" << std::endl;
         std::cout << options.help() << std::endl;
-        reportErrorCode2File(errorCode::E_INVALIDPARAM,
-                             "[ERROR] The -o,--output-file parameter must be given correctly.");
+        log_error << errorCode::E_INVALIDPARAM << "[ERROR] The -o,--output-file parameter must be given correctly.";
         exit(1);
     }
 
     if (result.count("omics") != 1) {
-        std::cout << "[ERROR] The -O,--omics parameter must be given correctly.\n" << std::endl;
         std::cout << options.help() << std::endl;
-        reportErrorCode2File(errorCode::E_INVALIDPARAM,
-                             "[ERROR] The -o,--output-file parameter must be given correctly.");
+        log_error << errorCode::E_INVALIDPARAM << "[ERROR] The -O,--output-file parameter must be given correctly.";
         exit(1);
     }
 
@@ -109,7 +103,7 @@ int bgef(int argc, char *argv[]) {
     opts->m_stromics = result["omics"].as<string>();
 
     gem2gef(opts);
-    //    generateBgef(opts.output_file, opts.input_file, opts.verbose);
+
     return 0;
 }
 
@@ -155,7 +149,7 @@ void gem2gef(BgefOptions *opts) {
 
     unsigned int resolution;
     float gef_area;
-    // int dnb_max_x, dnb_max_y;
+
     if (!H5Fis_hdf5(opts->input_file_.c_str())) {
         mRead(opts);
         resolution = parseResolutin(opts->input_file_);
@@ -170,9 +164,6 @@ void gem2gef(BgefOptions *opts) {
             opts->range_ = {expression_attr.min_x, expression_attr.max_x, expression_attr.min_y, expression_attr.max_y};
             opts->offset_x_ = expression_attr.min_x;
             opts->offset_y_ = expression_attr.min_y;
-
-            // dnb_max_x = expression_attr.max_x;
-            // dnb_max_y = expression_attr.max_y;
 
         } else {
             bgef_reader.getGeneExpression(opts->map_gene_exp_, opts->region_);
@@ -193,7 +184,7 @@ void gem2gef(BgefOptions *opts) {
 
     if (opts->verbose_) cprev = printCpuTime(cprev0, "read gene expression file");
     if (opts->map_gene_exp_.empty()) {
-        printf("the exp is empty\n");
+        log_info << "the exp is empty";
         return;
     }
 
@@ -212,10 +203,8 @@ void gem2gef(BgefOptions *opts) {
         auto &range = opts->range_;
 
         dnbAttr.min_x = (opts->offset_x_ / bin) * bin;
-        // dnbAttr.len_x = (range[1] / bin - range[0] / bin) + 1;
         dnbAttr.len_x = (range[1] / bin) + 1;
         dnbAttr.min_y = (opts->offset_y_ / bin) * bin;
-        // dnbAttr.len_y = (range[3] / bin - range[2] / bin) + 1;
         dnbAttr.len_y = (range[3] / bin) + 1;
 
         dnbAttr.max_x = (opts->range_[1] / bin) * bin;
@@ -229,29 +218,33 @@ void gem2gef(BgefOptions *opts) {
                dnbAttr.min_y, dnbAttr.len_y, matrix_len);
         if (bin == 1) {
             dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
-            if (dnb_matrix.pmatrix) {
-                reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-            }
             assert(dnb_matrix.pmatrix_us);
+            if (!dnb_matrix.pmatrix_us) {
+                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                return;
+            }
             if (opts->m_bexon) {
                 dnb_matrix.pexon16 = (unsigned short *)calloc(matrix_len, 2);
-                if (dnb_matrix.pmatrix) {
-                    reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-                }
                 assert(dnb_matrix.pexon16);
+                if (!dnb_matrix.pexon16) {
+                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                    return;
+                }
             }
         } else {
             dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
-            if (dnb_matrix.pmatrix) {
-                reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-            }
             assert(dnb_matrix.pmatrix);
+            if (!dnb_matrix.pmatrix) {
+                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                return;
+            }
             if (opts->m_bexon) {
                 dnb_matrix.pexon32 = (unsigned int *)calloc(matrix_len, 4);
-                if (dnb_matrix.pmatrix) {
-                    reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-                }
                 assert(dnb_matrix.pexon32);
+                if (!dnb_matrix.pexon32) {
+                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                    return;
+                }
             }
         }
 
@@ -277,29 +270,14 @@ void gem2gef(BgefOptions *opts) {
         unsigned int maxexp = 0;
         unsigned int maxexon = 0;
         genecnt = 0;
+        map<string, vector<Expression>> gene_info;
         while (true)  // write gene
         {
             GeneInfo *pgeneinfo = opts->m_geneinfo_queue.getPtr();
-            if (bin == 1) {
-                opts->expressions_.insert(opts->expressions_.end(), pgeneinfo->vecptr->begin(),
-                                          pgeneinfo->vecptr->end());
-            } else {
-                if (bin != 100 || opts->m_stattype == 2) {
-                    for (auto g : *pgeneinfo->vecptr) {
-                        g.x *= bin;
-                        g.y *= bin;
-                        opts->expressions_.push_back(std::move(g));
-                    }
-                }
-            }
+            gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
 
-            if (bin != 100 || opts->m_stattype == 2) {
-                opts->genes_.emplace_back(pgeneinfo->geneid, offset,
-                                          static_cast<unsigned int>(pgeneinfo->vecptr->size()));
-                offset += pgeneinfo->vecptr->size();
-                maxexp = std::max(maxexp, pgeneinfo->maxexp);
-                maxexon = std::max(maxexon, pgeneinfo->maxexon);
-            }
+            maxexp = std::max(maxexp, pgeneinfo->maxexp);
+            maxexon = std::max(maxexon, pgeneinfo->maxexon);
 
             if (bin == 100) {
                 opts->m_vec_bin100.emplace_back(pgeneinfo->geneid, pgeneinfo->umicnt, pgeneinfo->e10);
@@ -308,6 +286,25 @@ void gem2gef(BgefOptions *opts) {
             genecnt++;
             if (genecnt == opts->map_gene_exp_.size()) {
                 break;
+            }
+        }
+
+        for (auto itor : gene_info) {
+            if (bin == 1) {
+                opts->expressions_.insert(opts->expressions_.end(), itor.second.begin(), itor.second.end());
+            } else {
+                if (bin != 100 || opts->m_stattype == 2) {
+                    for (auto g : itor.second) {
+                        g.x *= bin;
+                        g.y *= bin;
+                        opts->expressions_.push_back(std::move(g));
+                    }
+                }
+            }
+
+            if (bin != 100 || opts->m_stattype == 2) {
+                opts->genes_.emplace_back(itor.first.c_str(), offset, static_cast<unsigned int>(itor.second.size()));
+                offset += itor.second.size();
             }
         }
 
@@ -395,10 +392,6 @@ int mRead(BgefOptions *opts)  // 多线程读
         }
     }
     gzclose(opts->infile_);
-
-    // consistent with the raw gef offset
-    // opts->range_[0] = opts->offset_x_;
-    // opts->range_[2] = opts->offset_y_;
 
     // Subtract min value of coordinates
     // int minx = opts->range_[0];
@@ -524,6 +517,17 @@ void writednb(BgefOptions *opts, BgefWriter &bgef_writer, int bin) {
 
 void MergeProteinAndRnaMatrices(const string &protein_raw_gef, const string &rna_raw_gef,
                                 const string &protein_output_gef, const string &rna_output_gef) {
+    std::string protein_omics = getOmicsType(protein_raw_gef, "Proteomics");
+    if (protein_omics.empty()) {
+        log_error << errorCode::E_INVALIDPARAM << "get omics type error. ";
+        return;
+    }
+    std::string rna_omics = getOmicsType(rna_raw_gef, "Transcriptomics");
+    if (rna_omics.empty()) {
+        log_error << errorCode::E_INVALIDPARAM << "get omics type error. ";
+        return;
+    }
+
     BgefReader protein_info(protein_raw_gef, 1);
     BgefReader rna_info(rna_raw_gef, 1);
 
@@ -589,11 +593,11 @@ void MergeProteinAndRnaMatrices(const string &protein_raw_gef, const string &rna
     protein_exp_attr.min_y = rna_exp_attr.min_y = matrix_min_y;
     protein_exp_attr.max_y = rna_exp_attr.max_y = matrix_max_y;
 
-    BgefWriter protein_gef_writer(protein_output_gef, protein_info.getVersion());
+    BgefWriter protein_gef_writer(protein_output_gef, protein_info.getVersion(), protein_omics);
     protein_gef_writer.StoreRawGef(protein_exp_data, protein_exp_count, protein_exp_attr, protein_genes,
                                    protein_info.getGeneNum(), protein_exons, protein_info.getGeneExonAttr());
 
-    BgefWriter rna_gef_writer(rna_output_gef, rna_info.getVersion());
+    BgefWriter rna_gef_writer(rna_output_gef, rna_info.getVersion(), rna_omics);
     rna_gef_writer.StoreRawGef(rna_exp_data, rna_exp_count, rna_exp_attr, rna_genes, rna_info.getGeneNum(), rna_exons,
                                rna_info.getGeneExonAttr());
 }
@@ -604,9 +608,6 @@ void Gem2Image(const string &gem_path, const string &tif_path) {
     std::string line;
     int offset_x, offset_y;
     while (readline(gem_file, line)) {
-        // if (line[0] == '#') {
-        //     continue;
-        // }
         if (line[0] == '#') {
             // Skip the offset parameter
             if (line.substr(0, 9) == "#OffsetX=")

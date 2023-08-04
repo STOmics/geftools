@@ -1,8 +1,11 @@
 //
 // Created by huangzhibo on 2021/12/15.
 //
-
 #include "bgef_reader.h"
+
+#ifndef _WIN32
+#include <malloc.h>
+#endif
 
 #include "bin_task.h"
 #include "dnb_merge_task.h"
@@ -33,11 +36,10 @@ KHASH_MAP_INIT_INT64(m64, unsigned int)
 std::mutex getdataTask::m_mtx;
 
 BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool verbose) {
-    file_id_ = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     printf("path:%s bin:%d\n", filename.c_str(), bin_size);
+    file_id_ = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     if (file_id_ < 0) {
-        printf("H5Fopen error\n");
-        reportErrorCode2File(errorCode::E_FILEOPENERROR, "H5Fopen error ");
+        log_error << errorCode::E_FILEOPENERROR << "open bgef file error. ";
         exit(1);
     }
     bin_size_ = bin_size;
@@ -74,7 +76,7 @@ BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool 
     H5Aread(attr, H5T_NATIVE_UINT, &version_);
     H5Aclose(attr);
 
-    if (H5Lexists(file_id_, "gef_area", H5P_DEFAULT) > 0) {
+    if (H5Aexists(file_id_, "gef_area") > 0) {
         hid_t area_attr = H5Aopen(file_id_, "gef_area", H5P_DEFAULT);
         H5Aread(area_attr, H5T_NATIVE_FLOAT, &gef_area_);
         H5Aclose(area_attr);
@@ -97,10 +99,10 @@ BgefReader::~BgefReader() {
     if (whole_exp_dataspace_id_ > 0) H5Sclose(whole_exp_dataspace_id_);
     if (m_exon_did) H5Dclose(m_exon_did);
     H5Fclose(file_id_);
-    //    if(opts_ != nullptr){
-    //        opts_->expressions_.clear();
-    //        opts_->genes_.clear();
-    //    }
+
+    // if(opts_ != nullptr){
+    //     delete opts_;
+    // }
 }
 
 void BgefReader::openExpressionSpace(int bin_size) {
@@ -881,89 +883,60 @@ int BgefReader::generateGeneExp(int bin_size, int n_thread) {
     dnb_attr.max_x = expression_attr_.max_x;
     dnb_attr.max_y = expression_attr_.max_y;
 
-    //    }else{
-    //        bgef_reader.getGeneExpression(opts->map_gene_exp_, opts->region_);
-    //        unsigned int min_x = opts->region_[0];
-    //        unsigned int max_x = opts->region_[1];
-    //        unsigned int min_y = opts->region_[2];
-    //        unsigned int max_y = opts->region_[3];
-    //
-    //        opts->range_ = {expression_attr.min_x + min_x, min(expression_attr.max_x, max_x+expression_attr.min_x),
-    //                        expression_attr.min_y + min_y, min(expression_attr.max_y, max_y+expression_attr.min_y)};
-    //        opts->offset_x_ = expression_attr.min_x + min_x;
-    //        opts->offset_y_ = expression_attr.min_y + min_y;
-    //    }
-
     ThreadPool thpool(n_thread);
-
     auto itor = opts_->map_gene_exp_.begin();
     for (; itor != opts_->map_gene_exp_.end(); itor++) {
         auto *task = new BinTask(bin_size, itor->first.c_str());
         thpool.addTask(task);
     }
 
+    map<string, vector<Expression>> gene_exp_map;
     unsigned int offset = 0;
     unsigned int maxexp = 0;
     int genecnt = 0;
+    expression_num_ = 0;
     while (true) {
         GeneInfo *pgenedata = opts_->m_geneinfo_queue.getPtr();
-        for (auto g : *pgenedata->vecptr) {
+        for (auto &g : *pgenedata->vecptr) {
             g.x *= bin_size;
             g.y *= bin_size;
-            opts_->expressions_.push_back(std::move(g));
         }
+        gene_exp_map.insert(map<string, vector<Expression>>::value_type(pgenedata->geneid, *pgenedata->vecptr));
+        expression_num_ += (*pgenedata->vecptr).size();
 
-        opts_->genes_.emplace_back(pgenedata->geneid, offset, static_cast<unsigned int>(pgenedata->vecptr->size()));
-        offset += pgenedata->vecptr->size();
         maxexp = std::max(maxexp, pgenedata->maxexp);
+        delete pgenedata;
 
         genecnt++;
         if (genecnt == opts_->map_gene_exp_.size()) {
             break;
         }
     }
-
     thpool.waitTaskDone();
+    opts_->m_genes_queue.clear(bin_size);
+    gene_num_ = genecnt;
 
-    expression_num_ = opts_->expressions_.size();
-    gene_num_ = opts_->genes_.size();
-
-    // sort by gene name...
-    map<string, vector<Expression>> gene_exp_map;
-    std::vector<Expression> exp_sort;
-    std::vector<Gene> genes_sort;
-
-    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-        vector<Expression> exps;
-        exps.reserve(opts_->genes_[gene_id].count);
-        unsigned int end = opts_->genes_[gene_id].offset + opts_->genes_[gene_id].count;
-        for (unsigned int i = opts_->genes_[gene_id].offset; i < end; i++) {
-            exps.emplace_back(opts_->expressions_[i]);
-        }
-
-        gene_exp_map.insert(map<string, vector<Expression>>::value_type(opts_->genes_[gene_id].gene, exps));
-    }
-    uint32_t idx = 0;
-    for (auto itor : gene_exp_map) {
-        for (uint32_t i = 0; i < itor.second.size(); i++) {
-            exp_sort.emplace_back(itor.second[i]);
-        }
-        genes_sort.emplace_back(itor.first.c_str(), idx, itor.second.size());
-        idx += itor.second.size();
-    }
-
+    if (genes_ != nullptr) free(genes_);
+    if (expressions_ != nullptr) free(expressions_);
     expressions_ = (Expression *)malloc(expression_num_ * sizeof(Expression));
     genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
 
-    // memcpy(expressions_, &opts_->expressions_[0], expression_num_*sizeof(Expression));
-    // memcpy(genes_, &opts_->genes_[0], gene_num_*sizeof(Gene));
-    memcpy(expressions_, &exp_sort[0], expression_num_ * sizeof(Expression));
-    memcpy(genes_, &genes_sort[0], gene_num_ * sizeof(Gene));
+    uint32_t idx = 0;
+    uint32_t g_idx = 0;
+    for (auto itor : gene_exp_map) {
+        for (uint32_t j = 0; j < itor.second.size(); j++) {
+            expressions_[(idx + j)] = itor.second[j];
+        }
+        genes_[g_idx] = {itor.first.c_str(), idx, (uint32_t)itor.second.size()};
+        idx += itor.second.size();
+        g_idx++;
+    }
 
-    // TODO 优化内存，取消opts_
-    opts_->expressions_.clear();
-    opts_->genes_.clear();
-
+    map<string, vector<Expression>>().swap(gene_exp_map);
+    std::unordered_map<std::string, std::vector<Expression>>().swap(opts_->map_gene_exp_);
+#ifndef _WIN32
+    malloc_trim(0);
+#endif
     cprev = printCpuTime(cprev, "generateBinInfo");
     return 0;
 }

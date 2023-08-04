@@ -8,15 +8,17 @@
 BgefWriter::BgefWriter(const string& output_filename, bool verbose, bool bexon, const string& stromics) {
     str32_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str32_type_, 32);
-
     str64_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str64_type_, 64);
 
     hid_t fapl = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_fclose_degree(fapl, H5F_CLOSE_STRONG);
-
-    cerr << "create h5 file: " << output_filename << endl;
+    log_info << "create bgef file: " << output_filename;
     file_id_ = H5Fcreate(output_filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl);
+    if (file_id_ < 0) {
+        log_error << errorCode::E_CREATEFILEFAILED << "create bgef file failed. ";
+        return;
+    }
 
     verbose_ = verbose;
     m_bexon = bexon;
@@ -44,6 +46,13 @@ BgefWriter::BgefWriter(const string& output_filename, bool verbose, bool bexon, 
     H5Sclose(k_did);
     H5Aclose(k_attr);
 
+    hsize_t bin_dims[1] = {1};
+    hid_t bin_did = H5Screate_simple(1, bin_dims, nullptr);
+    hid_t bin_attr = H5Acreate(file_id_, "bin_type", str32_type_, bin_did, H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(bin_attr, str32_type_, "Bin");
+    H5Sclose(bin_did);
+    H5Aclose(bin_attr);
+
     gene_exp_group_id_ = H5Gcreate(file_id_, "geneExp", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     whole_exp_group_id_ = H5Gcreate(file_id_, "wholeExp", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     if (m_bexon) {
@@ -60,7 +69,7 @@ void BgefWriter::SetGefArea(float& area) {
     H5Aclose(k_attr);
 }
 
-BgefWriter::BgefWriter(const string& output_filename, unsigned int raw_gef_version) {
+BgefWriter::BgefWriter(const string& output_filename, unsigned int raw_gef_version, const string& stromics) {
     str32_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str32_type_, 32);
 
@@ -80,6 +89,27 @@ BgefWriter::BgefWriter(const string& output_filename, unsigned int raw_gef_versi
     H5Awrite(attr, H5T_NATIVE_UINT, &version);
     H5Sclose(dataspace_id);
     H5Aclose(attr);
+
+    hsize_t gef_dimsAttr[1] = {3};
+    hid_t gef_dataspace_id = H5Screate_simple(1, gef_dimsAttr, nullptr);
+    hid_t gef_attr = H5Acreate(file_id_, "geftool_ver", H5T_STD_U32LE, gef_dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(gef_attr, H5T_NATIVE_UINT, GEFVERSION);
+    H5Sclose(gef_dataspace_id);
+    H5Aclose(gef_attr);
+
+    hsize_t kind_dims[1] = {1};
+    hid_t k_did = H5Screate_simple(1, kind_dims, nullptr);
+    hid_t k_attr = H5Acreate(file_id_, "omics", str32_type_, k_did, H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(k_attr, str32_type_, stromics.c_str());
+    H5Sclose(k_did);
+    H5Aclose(k_attr);
+
+    hsize_t bin_dims[1] = {1};
+    hid_t bin_did = H5Screate_simple(1, bin_dims, nullptr);
+    hid_t bin_attr = H5Acreate(file_id_, "bin_type", str32_type_, bin_did, H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(bin_attr, str32_type_, "Bin");
+    H5Sclose(bin_did);
+    H5Aclose(bin_attr);
 
     gene_exp_group_id_ = H5Gcreate(file_id_, "geneExp", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
     raw_gef_ = true;

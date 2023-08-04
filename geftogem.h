@@ -53,6 +53,7 @@ class GEFTOOLS_API geftogem {
     string m_strsn;   // gem sn号
     // Mat m_fill_points;
     unordered_map<uint32_t, cellmat> m_hash_cellpoint;
+    std::string omics_type {""};
 };
 
 #endif

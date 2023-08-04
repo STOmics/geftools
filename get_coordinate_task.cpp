@@ -46,10 +46,7 @@ void GetCoordinateTask::readbuf(RLen_ &rlen) {
         int z_errnum = 0;
         const char *errmsg = gzerror(m_file, &z_errnum);
         if (z_errnum == Z_ERRNO) errmsg = strerror(errno);
-        printf("read error %s", errmsg);
-        char errMsg2File[32] = {0};
-        sprintf(errMsg2File, "read error %s", errmsg);
-        reportErrorCode2File(errorCode::E_PARSEFILEERROR, errMsg2File);
+        log_error << errorCode::E_PARSEFILEERROR << "read error " << errmsg;
         exit(1);
     }
 

@@ -190,7 +190,7 @@ void bgefCreater::readbgef(const string &strin) {
     H5Aclose(attr);
     H5Dclose(exp_did);
 
-    if (H5Aexists(file_id, "omics")) {
+    if (H5Aexists(file_id, "omics") > 0) {
         hid_t fattr = H5Aopen(file_id, "omics", H5P_DEFAULT);
         H5Aread(fattr, strtype, m_szomics);
     }

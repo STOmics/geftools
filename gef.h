@@ -327,5 +327,8 @@ hid_t getMemtypeOfCellData();
 hid_t getMemtypeOfCellExpData();
 hid_t getMemtypeOfOlderCellExpData();
 bool isOlderCellExpDataVersion(hid_t fileId);
+std::string getOmicsName(hid_t file_id);
+bool ParseOmicsType(const std::string &bgef_file, std::string &omics);
+std::string getOmicsType(const std::string &file_path, const std::string &input_omics);
 
 #endif  // GEFTOOLS_GEF_H

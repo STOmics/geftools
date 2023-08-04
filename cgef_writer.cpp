@@ -9,14 +9,6 @@ CgefWriter::CgefWriter( bool verbose) {
     str64_type_ = H5Tcopy(H5T_C_S1);
     H5Tset_size(str64_type_, 64);
     verbose_ = verbose;
-
-    // cerr << "create h5 file: " <<  output_cell_gef << endl;
-    // hid_t fapl_id = H5Pcreate (H5P_FILE_ACCESS);
-    // H5Pset_libver_bounds(fapl_id, H5F_LIBVER_V18, H5F_LIBVER_LATEST);
-    // H5Pset_fclose_degree(fapl_id, H5F_CLOSE_STRONG);
-    // file_id_ = H5Fcreate(output_cell_gef.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
-    // group_id_ = H5Gcreate(file_id_, "/cellBin", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    // H5Pclose(fapl_id);
 }
 
 void CgefWriter::setOutput(const string& output_cell_gef)
@@ -56,17 +48,14 @@ void CgefWriter::openCellDataset()
     unsigned long cprev = clock();
     hid_t cell_dataset_id = H5Dopen(group_id_, "cell", H5P_DEFAULT);
     if (cell_dataset_id < 0) {
-        cerr << "failed open dataset: cell" << endl;
-        reportErrorCode2File(errorCode::E_MISSINGFILEINFO, "failed open dataset: cell");
+        log_error << errorCode::E_MISSINGFILEINFO << "failed open dataset: cell";
         exit(3);
     }
 
     hid_t s1_tid = H5Dget_type(cell_dataset_id);
     int nmemb = H5Tget_nmembers(s1_tid);
     if(nmemb < 9){
-        cerr << "Please use geftools(>=0.6) to regenerate this cgef file." << endl;
-        reportErrorCode2File(errorCode::E_LOWVERSION, 
-                            "Please use geftools(>=0.6) to regenerate this cgef file.");
+        log_error << errorCode::E_LOWVERSION << "Please use geftools(>=0.6) to regenerate this cgef file.";
         exit(2);
     }
 
@@ -526,7 +515,14 @@ void CgefWriter::storeAttr(CellBinAttr & cell_bin_attr) const {
     H5Awrite(k_attr, str32_type_, cell_bin_attr.omics.c_str());
     H5Sclose(k_did);
     H5Aclose(k_attr);
-    
+
+    hsize_t bin_dims[1] = {1};
+    hid_t bin_did = H5Screate_simple(1, bin_dims, nullptr);
+    hid_t bin_attr = H5Acreate(file_id_, "bin_type", str32_type_, bin_did, H5P_DEFAULT, H5P_DEFAULT);
+    H5Awrite(bin_attr, str32_type_, "CellBin");
+    H5Sclose(bin_did);
+    H5Aclose(bin_attr);
+
     if(verbose_) printCpuTime(cprev, "storeAttr");
 }
 

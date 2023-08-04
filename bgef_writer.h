@@ -30,7 +30,7 @@ class GEFTOOLS_API BgefWriter {
 
   public:
     BgefWriter(const string &output_filename, bool verbose, bool bexon, const string &stromics);
-    BgefWriter(const string &output_filename, unsigned int raw_gef_version);
+    BgefWriter(const string &output_filename, unsigned int raw_gef_version, const string &stromics);
     ~BgefWriter();
 
     bool storeGene(vector<Expression> &exps, vector<Gene> &genes, DnbAttr &dnbAttr, unsigned int maxexp, int binsize);

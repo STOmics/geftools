@@ -34,7 +34,7 @@ class readCellgemTask : public ITask {
     char *m_pbuf = nullptr;
     unordered_map<int, cgef_cell *> m_map_cell;
     unordered_map<string, cgef_gene *> m_map_gene;  // 保存一个基因出现的细胞情况
-    unordered_map<string, int> m_map_gene_id;
+    map<string, int> m_map_gene_id;
 
     static string m_leftstr;
     static mutex m_readmtx;   // 读文件锁
@@ -43,7 +43,7 @@ class readCellgemTask : public ITask {
     int m_min_x = INT_MAX, m_min_y = INT_MAX, m_max_x = 0, m_max_y = 0;
 };
 
-// geneID  xPos    yPos    UMICount
+// geneID xPos yPos UMICount
 class readCellgemTask_raw : public readCellgemTask {
   public:
     readCellgemTask_raw() {};
@@ -68,46 +68,5 @@ class readCellgemTask_cell : public readCellgemTask {
   private:
     bool m_bexon = false;
 };
-
-//-------------------------------------------
-// class readCellgemTask_5_mask:public readCellgemTask
-// {
-// public:
-//     readCellgemTask_5_mask(){};
-//     ~readCellgemTask_5_mask(){};
-//     int getInfo();
-// };
-
-// class readCellgemTask_6_mask:public readCellgemTask
-// {
-// public:
-//     readCellgemTask_6_mask(){};
-//     ~readCellgemTask_6_mask(){};
-//     int getInfo();
-// };
-
-// class readCellgemTask_5:public readCellgemTask
-// {
-// public:
-//     readCellgemTask_5(){};
-//     ~readCellgemTask_5(){};
-//     int getInfo();
-// };
-
-// class readCellgemTask_6:public readCellgemTask
-// {
-// public:
-//     readCellgemTask_6(){};
-//     ~readCellgemTask_6(){};
-//     int getInfo();
-// };
-
-// class readCellgemTask_6_type:public readCellgemTask
-// {
-// public:
-//     readCellgemTask_6_type(){};
-//     ~readCellgemTask_6_type(){};
-//     int getInfo();
-// };
 
 #endif

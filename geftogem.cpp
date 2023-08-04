@@ -5,11 +5,33 @@
 
 #include "utils.h"
 
+// #define GEM_HEADER          \
+//     "#FileFormat=GEMv0.1\n" \
+//     "#SortedBy=None\n"      \
+//     "#BinType={0}\n"        \
+//     "#BinSize={1}\n"        \
+//     "#Omics={2}\n"          \
+//     "#Stereo-seqChip={3}\n" \
+//     "#OffsetX={4}\n"        \
+//     "#OffsetY={5}\n"
+
 #define GEM_HEADER            \
     "#FileFormat=GEMv%d.%d\n" \
     "#SortedBy=None\n"        \
+    "#BinType=%s\n"           \
     "#BinSize=%d\n"           \
-    "#STOmicsChip=%s\n"       \
+    "#Omics=%s\n"             \
+    "#Stereo-seqChip=%s\n"    \
+    "#OffsetX=%d\n"           \
+    "#OffsetY=%d\n"
+
+#define CGEM_HEADER            \
+    "#FileFormat=GEMv%d.%d\n" \
+    "#SortedBy=None\n"        \
+    "#BinType=%s\n"           \
+    "#BinSize=%s\n"           \
+    "#Omics=%s\n"             \
+    "#Stereo-seqChip=%s\n"    \
     "#OffsetX=%d\n"           \
     "#OffsetY=%d\n"
 
@@ -108,7 +130,7 @@ void geftogem::bgef2gem() {
 
     stringstream sstrout;
     char buf[1024] = {0};
-    sprintf(buf, GEM_HEADER, 0, 1, m_bin, m_strsn.c_str(), m_min_x, m_min_y);
+    sprintf(buf, GEM_HEADER, 0, 1, "Bin", m_bin, omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
 
     if (m_bexon && m_boutexon) {
         sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\n";
@@ -185,6 +207,24 @@ void geftogem::getdnb() {
 
 void geftogem::readBgef(const string &strinput) {
     hid_t file_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "can not open gef file. please check file. ";
+        return;
+    }
+    // omics_t_ = getOmicsName(file_id);
+    if (H5Aexists(file_id, "omics") > 0) {
+        hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics_type.append(szbuf);
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        log_info << "can not find omics type from file. using default type: Transcriptomics. ";
+        omics_type = "Transcriptomics";
+    }
     getBgefGene(file_id);
     getBgefExp(file_id);
     H5Fclose(file_id);
@@ -305,7 +345,7 @@ void geftogem::cgef2gem() {
     }
     stringstream sstrout;
     char buf[1024] = {0};
-    sprintf(buf, GEM_HEADER, 0, 1, m_bin, m_strsn.c_str(), m_min_x, m_min_y);
+    sprintf(buf, CGEM_HEADER, 0, 1, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
     sstrout << buf << "geneID\tx\ty\tMIDCount\tCellID\n";
     *pout << sstrout.str();
     uint64_t l_id = 0;
@@ -347,7 +387,7 @@ void geftogem::cgef2gem_exon() {
 
     stringstream sstrout;
     char buf[1024] = {0};
-    sprintf(buf, GEM_HEADER, 0, 1, m_bin, m_strsn.c_str(), m_min_x, m_min_y);
+    sprintf(buf, CGEM_HEADER, 0, 1, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
     sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\tCellID\n";
     *pout << sstrout.str();
 
@@ -397,8 +437,7 @@ void geftogem::readmask(const string &strmask) {
     cv::Mat img;
     tifread(img, strmask);
     if (img.empty()) {
-        reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-        std::cout << "read mask file error" << std::endl;
+        log_error << errorCode::E_INVALIDPARAM << "read mask file error. ";
         exit(-1);
     }
     assert(!img.empty());

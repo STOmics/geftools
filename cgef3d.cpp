@@ -145,8 +145,7 @@ void cgef3d::readmask(const string &strmask)
     tifread(img, strmask);
     if (img.empty())
     {
-        reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-        std::cout << "read mask file error" << std::endl;
+        log_error << errorCode::E_INVALIDPARAM << "read mask file error. ";
         exit(-1);
     }
     assert(!img.empty());

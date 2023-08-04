@@ -105,13 +105,15 @@ void cellAdjust::readBgef(const string &strinput) {
     H5Dclose(exp_did);
     H5Tclose(strtype);
 
-    hid_t omics_strtype = H5Tcopy(H5T_C_S1);
-    H5Tset_size(omics_strtype, 32);
-    if (H5Aexists(m_bgeffile_id, "omics")) {
+    if (H5Aexists(m_bgeffile_id, "omics") > 0) {
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
         hid_t fattr = H5Aopen(m_bgeffile_id, "omics", H5P_DEFAULT);
         H5Aread(fattr, omics_strtype, m_szomics);
+        H5Tclose(omics_strtype);
+    } else {
+        strcpy(m_szomics, "Transcriptomics");
     }
-    H5Tclose(omics_strtype);
 
     uint64_t l_id = 0;
     for (int i = 0; i < m_genencnt; i++) {
@@ -644,6 +646,7 @@ void cellAdjust::createRegionGef(const string &out) {
     hid_t gid = H5Gopen(m_bgeffile_id, "/geneExp", H5P_DEFAULT);
     if (gid < 0) {
         std::cout << "can not find input spatial bin gef file... " << std::endl;
+        return;
     }
     std::vector<std::string> group_names;
     herr_t idx = H5Literate(gid, H5_INDEX_NAME, H5_ITER_INC, NULL, file_info, &group_names);
@@ -653,6 +656,11 @@ void cellAdjust::createRegionGef(const string &out) {
     for (string &str : group_names) {
         int bin = std::stoi(str.substr(3));
         m_bgefopts->bin_sizes_.push_back(bin);
+    }
+
+    if (m_bgefopts->map_gene_exp_.size() == 0) {
+        log_error << "region has no information. please check. ";
+        return;
     }
 
     m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
@@ -681,31 +689,36 @@ void cellAdjust::createRegionGef(const string &out) {
         unsigned long matrix_len = (unsigned long)(dnbAttr.len_x) * dnbAttr.len_y;
         printf("bin %d matrix: min_x=%d len_x=%d min_y=%d len_y=%d matrix_len=%lu\n", bin, dnbAttr.min_x, dnbAttr.len_x,
                dnbAttr.min_y, dnbAttr.len_y, matrix_len);
+
         if (bin == 1) {
             dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
-            if (dnb_matrix.pmatrix) {
-                reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-            }
             assert(dnb_matrix.pmatrix_us);
+            if (!dnb_matrix.pmatrix_us) {
+                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                return;
+            }
             if (m_bexon) {
                 dnb_matrix.pexon16 = (unsigned short *)calloc(matrix_len, 2);
-                if (dnb_matrix.pmatrix) {
-                    reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-                }
                 assert(dnb_matrix.pexon16);
+                if (!dnb_matrix.pexon16) {
+                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                    return;
+                }
             }
         } else {
             dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
-            if (dnb_matrix.pmatrix) {
-                reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-            }
             assert(dnb_matrix.pmatrix);
+            if (!dnb_matrix.pmatrix) {
+                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                return;
+            }
             if (m_bexon) {
                 dnb_matrix.pexon32 = (unsigned int *)calloc(matrix_len, 4);
-                if (dnb_matrix.pmatrix) {
-                    reportErrorCode2File(errorCode::E_INVALIDPARAM, "read mask file error ");
-                }
                 assert(dnb_matrix.pexon32);
+                if (!dnb_matrix.pexon32) {
+                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                    return;
+                }
             }
         }
 
@@ -724,33 +737,38 @@ void cellAdjust::createRegionGef(const string &out) {
         unsigned int maxexp = 0;
         unsigned int maxexon = 0;
         genecnt = 0;
+        map<string, vector<Expression>> gene_info;
         while (true) {
             GeneInfo *pgeneinfo = m_bgefopts->m_geneinfo_queue.getPtr();
-            if (bin == 1) {
-                m_bgefopts->expressions_.insert(m_bgefopts->expressions_.end(), pgeneinfo->vecptr->begin(),
-                                                pgeneinfo->vecptr->end());
-            } else {
-                for (auto g : *pgeneinfo->vecptr) {
-                    g.x *= bin;
-                    g.y *= bin;
-                    m_bgefopts->expressions_.push_back(std::move(g));
-                }
-            }
+            gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
 
-            m_bgefopts->genes_.emplace_back(pgeneinfo->geneid, offset,
-                                            static_cast<unsigned int>(pgeneinfo->vecptr->size()));
-            offset += pgeneinfo->vecptr->size();
             maxexp = std::max(maxexp, pgeneinfo->maxexp);
             maxexon = std::max(maxexon, pgeneinfo->maxexon);
 
             if (bin == 100) {
                 m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid, pgeneinfo->umicnt, pgeneinfo->e10);
             }
+
             delete pgeneinfo;
             genecnt++;
             if (genecnt == m_bgefopts->map_gene_exp_.size()) {
                 break;
             }
+        }
+
+        for (auto itor : gene_info) {
+            if (bin == 1) {
+                m_bgefopts->expressions_.insert(m_bgefopts->expressions_.end(), itor.second.begin(), itor.second.end());
+            } else {
+                for (auto g : itor.second) {
+                    g.x *= bin;
+                    g.y *= bin;
+                    m_bgefopts->expressions_.push_back(std::move(g));
+                }
+            }
+
+            m_bgefopts->genes_.emplace_back(itor.first.c_str(), offset, static_cast<unsigned int>(itor.second.size()));
+            offset += itor.second.size();
         }
 
         bgef_writer.storeGene(m_bgefopts->expressions_, m_bgefopts->genes_, dnb_matrix.dnb_attr, maxexp, bin);
@@ -760,6 +778,7 @@ void cellAdjust::createRegionGef(const string &out) {
 
         thpool.waitTaskDone();
         m_bgefopts->m_genes_queue.clear(bin);
+
         // write dnb
         if (bin == 100) {
             vector<GeneStat> &geneStat = m_bgefopts->m_vec_bin100;
@@ -939,6 +958,20 @@ void cellAdjust::getRegionCelldata(vector<vector<int>> &m_vecpos) {
 void cellAdjust::readRawCgef(const string &strcgef) {
     timer st(__FUNCTION__);
     hid_t file_id = H5Fopen(strcgef.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "can not open gef file. please check file. ";
+        return;
+    }
+    if (H5Aexists(m_bgeffile_id, "omics") > 0) {
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        hid_t fattr = H5Aopen(m_bgeffile_id, "omics", H5P_DEFAULT);
+        H5Aread(fattr, omics_strtype, m_szomics);
+        H5Aclose(fattr);
+        H5Tclose(omics_strtype);
+    } else {
+        strcpy(m_szomics, "Transcriptomics");
+    }
 
     uint32_t cellexpcnt = 0;
     // cell
@@ -1117,7 +1150,7 @@ void cellAdjust::writeToCgef(const string &outpath) {
     CellBinAttr cell_bin_attr = {/*.version = */ 2,
                                  /*.resolution = */ m_resolution,
                                  /*.offsetX = */ m_offsetX,
-                                 /* .offsetY = */ m_offsetY};
+                                 /* .offsetY = */ m_offsetY, m_szomics};
     m_cgefwPtr->storeAttr(cell_bin_attr);
 
     writeCellToCgef();
@@ -1157,6 +1190,10 @@ void cellAdjust::writeCellToCgef() {
     // }
 
     printf("rawcellcnt:%d newcellcnt:%d\n", m_cellcnt, vec_cid.size());
+    if (vec_cid.size() == 0) {
+        log_error << "lasso region has no infomation. please check. ";
+        return;
+    }
 
     uint16_t cell_type_id;
 
@@ -1374,7 +1411,7 @@ void cellAdjust::writeGeneToCgef() {
     free(gene_exon_ptr);
 }
 
-/////////////////////////////sap//////////////////////////////
+//////////////////////////////////sap////////////////////////////////////////
 void cellAdjust::getSapRegion(const string &strinput, int bin, int thcnt, vector<vector<int>> &vecpos,
                               vector<sapBgefData> &vecdata, float &region_area) {
     timer st(__FUNCTION__);
@@ -1386,10 +1423,7 @@ void cellAdjust::getSapRegion(const string &strinput, int bin, int thcnt, vector
     hsize_t dims[2];
     hid_t gene_did = H5Dopen(m_bgeffile_id, dataName, H5P_DEFAULT);
     if (gene_did < 0) {
-        printf("can't find %s\n", dataName);
-        char errMsg[32] = {0};
-        sprintf(errMsg, "/wholeExp/bin%d", bin);
-        reportErrorCode2File(errorCode::E_MISSINGFILEINFO, errMsg);
+        log_error << errorCode::E_MISSINGFILEINFO << "can't find " << dataName;
         exit(-1);
     }
     hid_t gene_sid = H5Dget_space(gene_did);
@@ -1471,10 +1505,7 @@ void cellAdjust::getSapRegionIndex(const string &strinput, int bin, int thcnt, v
     hsize_t dims[2];
     hid_t gene_did = H5Dopen(m_bgeffile_id, dataName, H5P_DEFAULT);
     if (gene_did < 0) {
-        printf("can't find %s\n", dataName);
-        char errMsg[32] = {0};
-        sprintf(errMsg, "/wholeExp/bin%d", bin);
-        reportErrorCode2File(errorCode::E_MISSINGFILEINFO, errMsg);
+        log_error << errorCode::E_MISSINGFILEINFO << "can't find " << dataName;
         exit(-1);
     }
     hid_t gene_sid = H5Dget_space(gene_did);
@@ -1520,24 +1551,24 @@ void cellAdjust::getSapRegionIndex(const string &strinput, int bin, int thcnt, v
     std::vector<int> x_list;
     std::vector<int> y_list;
     // if (bin != 1) {
-        int id = 0, m, n;
-        for (uint32_t x = 0; x < dims[0]; x++)  // cols
+    int id = 0, m, n;
+    for (uint32_t x = 0; x < dims[0]; x++)  // cols
+    {
+        for (uint32_t y = 0; y < dims[1]; y++)  // rows
         {
-            for (uint32_t y = 0; y < dims[1]; y++)  // rows
-            {
-                id = x * dims[1] + y;
-                m = x * bin;
-                n = y * bin;
-                if (fill_points.at<uchar>(n, m)) {
-                    if (m_parry[id].gene_count) {
-                        x_list.emplace_back(m);
-                        y_list.emplace_back(n);
-                    }
+            id = x * dims[1] + y;
+            m = x * bin;
+            n = y * bin;
+            if (fill_points.at<uchar>(n, m)) {
+                if (m_parry[id].gene_count) {
+                    x_list.emplace_back(m);
+                    y_list.emplace_back(n);
                 }
             }
         }
-        vecdata.emplace_back(x_list);
-        vecdata.emplace_back(y_list);
+    }
+    vecdata.emplace_back(x_list);
+    vecdata.emplace_back(y_list);
     // } else {
     //     ThreadPool thpool(thcnt);
     //     for (int i = 0; i < thcnt; i++) {

@@ -21,6 +21,29 @@ void reportErrorCode2File(const char *errCode, const char *errMsg) {
     }
 }
 
+void PrintLog(const std::string &content) { std::cout << content << std::endl; }
+
+void PrintErrorLog(const std::string &content) {
+    std::cerr << content.substr(content.find(":") + 2, content.size()) << std::endl;
+    if (errorCode::isInSAWFlow) {
+        fstream fs;
+        fs.open("errcode.log", ios::app);
+        S32 time_str = getStrfTime();
+        if (!fs) {
+            ofstream fout("errcode.log");
+            if (fout) {
+                fout << "[" << time_str.value << "]"
+                     << " " << content << endl;
+                fout.close();
+            }
+        } else {
+            fs << "[" << time_str.value << "]"
+               << " " << content << endl;
+            fs.close();
+        }
+    }
+}
+
 S32 getStrfTime() {
     time_t timep;
     time(&timep);
@@ -70,10 +93,7 @@ vector<string> readLines(const string &filename) {
     }
 
     if (!infile.eof()) {
-        cerr << "Error to read file : " << filename << endl;
-        char errMsg[32] = {0};
-        sprintf(errMsg, "Error to read file : %s", filename);
-        reportErrorCode2File(errorCode::E_PARSEFILEERROR, errMsg);
+        log_error << errorCode::E_PARSEFILEERROR << "Error to read file : " << filename;
         exit(2);
     }
 

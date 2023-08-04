@@ -87,7 +87,7 @@ hid_t CgefReader::openCellDataset(hid_t group_id) {
     cell_dataset_id_ = H5Dopen(group_id, "cell", H5P_DEFAULT);
     if (cell_dataset_id_ < 0) {
         cerr << "failed open dataset: cell" << endl;
-        reportErrorCode2File(errorCode::E_MISSINGFILEINFO, "failed open dataset: cell");
+        log_error << errorCode::E_MISSINGFILEINFO << "failed open dataset: cell";
         exit(3);
     }
 
@@ -95,12 +95,11 @@ hid_t CgefReader::openCellDataset(hid_t group_id) {
     int nmemb = H5Tget_nmembers(s1_tid);
 
     if (nmemb < 9) {
-        cerr << "Please use geftools(>=0.6) to regenerate this cgef file." << endl;
-        reportErrorCode2File(errorCode::E_LOWVERSION, "Please use geftools(>=0.6) to regenerate this cgef file.");
+        log_error << errorCode::E_LOWVERSION << "Please use geftools(>=0.6) to regenerate this cgef file. ";
         exit(2);
     }
 
-    if (H5Aexists(cell_dataset_id_, "blockIndex")) {
+    if (H5Aexists(cell_dataset_id_, "blockIndex") > 0) {
         hsize_t dims_attr[1];
         hid_t attr, attr_dataspace;
         attr = H5Aopen(cell_dataset_id_, "blockIndex", H5P_DEFAULT);
@@ -160,7 +159,7 @@ hid_t CgefReader::openCellExpDataset(hid_t group_id) {
     cell_exp_dataset_id_ = H5Dopen(group_id, "cellExp", H5P_DEFAULT);
     if (cell_exp_dataset_id_ < 0) {
         cerr << "failed open dataset: cellExp" << endl;
-        reportErrorCode2File(errorCode::E_MISSINGFILEINFO, "failed open dataset: cellExp");
+        log_error << errorCode::E_MISSINGFILEINFO << "failed open dataset: cellExp. ";
         exit(3);
     }
     return cell_exp_dataset_id_;
@@ -441,8 +440,7 @@ void CgefReader::getGeneIdAndCount(unsigned int *gene_id, unsigned short *count)
 unsigned int CgefReader::getExpressionCountByGene(string &gene_name, GeneExpData *expressions) {
     int gene_id = getGeneId(gene_name);
     if (gene_id < 0) {
-        cerr << "Gene ID < 0 : " << gene_id << endl;
-        reportErrorCode2File(errorCode::E_FILEDATAERROR, "Gene ID < 0 : ");
+        log_error << errorCode::E_FILEDATAERROR << "Gene ID < 0 : " << gene_id;
         exit(2);
     }
     return getExpressionCountByGeneId(gene_id, expressions);
@@ -680,9 +678,8 @@ bool CgefReader::isRestrictGene() const { return restrict_gene_; }
 void CgefReader::restrictRegion(unsigned int min_x, unsigned int max_x, unsigned int min_y, unsigned int max_y) {
     unsigned long cprev = clock();
     if (restrict_gene_ || restrict_region_) {
-        cerr << "Please call freeRestriction first, or call restrictRegion function before restrictGene." << endl;
-        reportErrorCode2File(errorCode::E_STEPERROR,
-                             "Please call freeRestriction first, or call restrictRegion function before restrictGene.");
+        log_error << errorCode::E_STEPERROR
+                  << "Please call freeRestriction first, or call restrictRegion function before restrictGene.";
         exit(2);
     }
 

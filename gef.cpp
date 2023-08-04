@@ -83,3 +83,107 @@ bool isOlderCellExpDataVersion(hid_t fileId) {
         return false;
     }
 }
+
+std::string getOmicsName(hid_t file_id) {
+    std::string omics_type {""};
+    std::string omics_name {""};
+    if (H5Aexists(file_id, "omics") > 0) {
+        hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics_type.append(szbuf);
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        log_info << "can not find omics type from file. using default type: Transcriptomics. ";
+        omics_name = "gene";
+        return omics_name;
+    }
+    if (omics_type == "Transcriptomics") {
+        omics_name = "gene";
+    } else {
+        omics_name = "protein";
+    }
+    return omics_name;
+}
+
+bool ParseOmicsType(const std::string &bgef_file, std::string &input_omics) {
+    hid_t file_id = H5Fopen(bgef_file.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "open bgef file error. ";
+        return false;
+    }
+    std::string omics_type {""};
+    if (H5Aexists(file_id, "omics") > 0) {
+        hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics_type.append(szbuf);
+        if (omics_type != input_omics) {
+            log_info << "\'-O\' information does not match the omics recorded in " << bgef_file
+                     << ",please check input parameter or files. ";
+            H5Aclose(f_attr);
+            H5Tclose(omics_strtype);
+            H5Fclose(file_id);
+            return false;
+        }
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        log_info << "can not find omics type from file. using default type: Transcriptomics. ";
+        omics_type = "Transcriptomics";
+        if (omics_type != input_omics) {
+            log_info << "\'-O\' information does not match the omics recorded in " << bgef_file
+                     << ",please check input parameter or files. ";
+            H5Fclose(file_id);
+            return false;
+        }
+    }
+    H5Fclose(file_id);
+    return true;
+}
+
+std::string getOmicsType(const std::string &file_path, const std::string &input_omics) {
+    std::string omics {""};
+
+    hid_t file_id = H5Fopen(file_path.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_error << errorCode::E_FILEOPENERROR << "open bgef file error. ";
+        return omics;
+    }
+    if (H5Aexists(file_id, "omics") > 0) {
+        hid_t f_attr = H5Aopen(file_id, "omics", H5P_DEFAULT);
+        char szbuf[128] = {0};
+        hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(omics_strtype, 32);
+        H5Aread(f_attr, omics_strtype, szbuf);
+        omics.append(szbuf);
+        if (omics != input_omics) {
+            log_error << errorCode::E_INVALIDPARAM << "information does not match the omics recorded in " << file_path
+                      << ",please check input parameter or files. ";
+            H5Aclose(f_attr);
+            H5Tclose(omics_strtype);
+            H5Fclose(file_id);
+            return "";
+        }
+        H5Aclose(f_attr);
+        H5Tclose(omics_strtype);
+    } else {
+        if (input_omics == "Transcriptomics") {
+            log_info << "can not find omics type from file. using default type: Transcriptomics. ";
+            omics = "Transcriptomics";
+            H5Fclose(file_id);
+            return omics;
+        }
+
+        log_error << errorCode::E_INVALIDPARAM << " can not find omics type from file. ";
+        H5Fclose(file_id);
+        return omics;
+    }
+    H5Fclose(file_id);
+    return omics;
+}

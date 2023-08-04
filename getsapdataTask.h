@@ -66,7 +66,7 @@ class getLabelInfoTask : public ITask {
 
     void doTask() {
         std::vector<LabelGeneData> vettmp;
-        int tmp_ttmidcnt;
+        int tmp_ttmidcnt = 0;
 
         for (uint32_t i = m_start; i < m_end; i++) {
             Expression *ptr = e_ptr_ + m_ptr[i].offset;

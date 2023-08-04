@@ -9,23 +9,7 @@
 #include "cgefParam.h"
 #include "cgef_reader.h"
 #include "opencv2/opencv.hpp"
-int te1(const char *p1, const char *p2) {
-    cellAdjust cg;
-    vector<sapBgefData> vecdata;
-    vector<vector<int>> vecpos;
 
-    vector<int> v1 {12988, 10307, 12993, 10307, 12993, 10313, 12992, 10313, 12992, 10315, 12991, 10315, 12990,
-                    10316, 12989, 10316, 12989, 10317, 12986, 10317, 12985, 10316, 12983, 10316, 12983, 10315,
-                    12981, 10315, 12981, 10314, 12979, 10314, 12978, 10313, 12986, 10306, 12988, 10306};
-    vector<int> v2 {12985, 10309, 12982, 10314, 12987, 10314, 12987, 10313,
-                    12988, 10313, 12988, 10310, 12987, 10310, 12987, 10309};
-    vecpos.emplace_back(std::move(v1));
-    vecpos.emplace_back(std::move(v2));
-
-    // cg.getSapRegion(p1, 1, 10, vecpos, vecdata);
-    printf("cnt:%d\n", vecdata.size());
-    return 0;
-}
 
 int cgef(int argc, char *argv[]) {
     cxxopts::Options options("geftools cgef",
@@ -49,7 +33,7 @@ int cgef(int argc, char *argv[]) {
 
     if (argc <= 1 || result.count("help")) {
         std::cerr << options.help() << std::endl;
-        reportErrorCode2File(errorCode::E_INVALIDPARAM, "missing params");
+        log_error << errorCode::E_INVALIDPARAM << "missing params ";
         exit(1);
     }
 
@@ -58,10 +42,8 @@ int cgef(int argc, char *argv[]) {
     // }
 
     if (result.count("input-file") != 1) {
-        std::cerr << "[ERROR] The -i,--input-file parameter must be given correctly.\n" << std::endl;
         std::cerr << options.help() << std::endl;
-        reportErrorCode2File(errorCode::E_INVALIDPARAM,
-                             "[ERROR] The -i,--input-file parameter must be given correctly.");
+        log_error << errorCode::E_INVALIDPARAM << "[ERROR] The -i,--input-file parameter must be given correctly.";
         exit(1);
     }
 
@@ -96,9 +78,8 @@ int cgef(int argc, char *argv[]) {
 
     vector<string> block_size_tmp = split(result["block"].as<string>(), ',');
     if (block_size_tmp.size() != 2) {
-        std::cerr << "[ERROR] The -b,--block parameter must be given correctly.\n" << std::endl;
         std::cerr << options.help() << std::endl;
-        reportErrorCode2File(errorCode::E_INVALIDPARAM, "[ERROR] The -b,--block parameter must be given correctly.");
+        log_error << errorCode::E_INVALIDPARAM << "[ERROR] The -b,--block parameter must be given correctly.";
         exit(1);
     }
     cgefParam::GetInstance()->m_block_size[0] = static_cast<int>(strtol(block_size_tmp[0].c_str(), nullptr, 10));
@@ -115,9 +96,8 @@ int cgef(int argc, char *argv[]) {
                      cgefParam::GetInstance()->m_maskstr, cgefParam::GetInstance()->m_block_size, rand_celltype_num);
     } else if (patch == 2) {
         if (!cgefParam::GetInstance()->has_omics_) {
-            std::cerr << "The -O,--omics parameter must be given. no omics information." << std::endl;
-            reportErrorCode2File(errorCode::E_INVALIDPARAM,
-                                 "The -O,--omics parameter must be given. no omics information.");
+            std::cerr << options.help() << std::endl;
+            log_error << errorCode::E_INVALIDPARAM << "The -O,--omics parameter must be given. no omics information.";
             exit(1);
         }
         cgem2cgef(cgefParam::GetInstance()->m_inputstr, cgefParam::GetInstance()->m_outputstr,
@@ -158,7 +138,7 @@ int cgem2cgef(const string &strcgem, const string &strcgef, const int *block_siz
 std::map<unsigned int, unsigned short> ParseClusterFile(const string &cluster_file) {
     vector<string> cluster_info = readLines(cluster_file);
     if (cluster_info.empty()) {
-        reportErrorCode2File(errorCode::E_INVALIDPARAM, "[ERROR] Input file is not cellbin file.");
+        log_info << "Input file is not cellbin file.";
     }
 
     std::map<unsigned int, unsigned short> cell_cluster;
@@ -169,7 +149,7 @@ std::map<unsigned int, unsigned short> ParseClusterFile(const string &cluster_fi
             unsigned int cellId = std::stoi(cluster_id[0]);
             cell_cluster[cellId] = std::stoi(cluster_id[1]);
         } else {
-            reportErrorCode2File(errorCode::E_INVALIDPARAM, "[ERROR] Input file is not cellbin file.");
+            log_info << "Input file is not cellbin file.";
         }
     }
     return cell_cluster;
@@ -178,7 +158,7 @@ std::map<unsigned int, unsigned short> ParseClusterFile(const string &cluster_fi
 void AddClusterId4Cgef(const string &input_file, const string &output_file, const string &cluster_file) {
     std::cout << "parse cell_cluster file. " << std::endl;
     if (!copyFile(input_file, output_file)) {
-        reportErrorCode2File(errorCode::E_INVALIDPARAM, "[ERROR] Can not write cellbin file.");
+        log_info << "can not write cellbin file.";
         return;
     }
     auto cluster_info = ParseClusterFile(cluster_file);
