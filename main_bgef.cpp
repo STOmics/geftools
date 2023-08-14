@@ -30,9 +30,8 @@ int bgef(int argc, char *argv[]) {
                "STR")("t,threads", "number of threads", cxxopts::value<int>()->default_value("8"), "INT")(
         "s,stat", "create stat group", cxxopts::value<bool>()->default_value("true"))(
         "O,omics", "input omics [request]", cxxopts::value<std::string>()->default_value("Transcriptomics"), "STR")(
-        "v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))
-        // ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
-        ("help", "Print help");
+        "v,verbose", "Verbose output", cxxopts::value<bool>()->default_value("false"))(
+        "w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))("help", "Print help");
 
     auto result = options.parse(argc, argv);
 
@@ -42,9 +41,9 @@ int bgef(int argc, char *argv[]) {
         exit(1);
     }
 
-    // if (result.count("errorCode-file") == 1) {
-    //     errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
-    // }
+    if (result.count("errorCode-file") == 1) {
+        errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
+    }
 
     if (result.count("input-file") != 1) {
         std::cout << options.help() << std::endl;
@@ -184,7 +183,7 @@ void gem2gef(BgefOptions *opts) {
 
     if (opts->verbose_) cprev = printCpuTime(cprev0, "read gene expression file");
     if (opts->map_gene_exp_.empty()) {
-        log_info << "the exp is empty";
+        log_error << errorCode::E_MISSINGFILEINFO << "the exp is empty";
         return;
     }
 
@@ -271,8 +270,8 @@ void gem2gef(BgefOptions *opts) {
         unsigned int maxexon = 0;
         genecnt = 0;
         map<string, vector<Expression>> gene_info;
-        while (true)  // write gene
-        {
+        // write gene
+        while (true) {
             GeneInfo *pgeneinfo = opts->m_geneinfo_queue.getPtr();
             gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
 
@@ -317,6 +316,7 @@ void gem2gef(BgefOptions *opts) {
 
         thpool.waitTaskDone();
         opts->m_genes_queue.clear(bin);
+        
         // write dnb
         writednb(opts, bgef_writer, bin);
 
@@ -515,19 +515,47 @@ void writednb(BgefOptions *opts, BgefWriter &bgef_writer, int bin) {
     if (opts->verbose_) printCpuTime(cprev, "writednb");
 }
 
-void MergeProteinAndRnaMatrices(const string &protein_raw_gef, const string &rna_raw_gef,
-                                const string &protein_output_gef, const string &rna_output_gef) {
-    std::string protein_omics = getOmicsType(protein_raw_gef, "Proteomics");
+void MergeProteinAndRnaMatrices(const string &input_gef, const string &output_gef, const string &omics_type) {
+    std::string protein_raw_gef;
+    std::string rna_raw_gef;
+    std::string protein_output_gef;
+    std::string rna_output_gef;
+
+    std::vector<std::string> raw_gefs = split(input_gef, ',');
+    if (raw_gefs.size() != 2) {
+        log_error << "too many files input. ";
+    } else {
+        if ( !(is_bgef(raw_gefs[0]) && is_bgef(raw_gefs[1])) ) {
+            log_error << "input files is wrong. ";
+            return;
+        }
+        protein_raw_gef = raw_gefs[0];
+        rna_raw_gef = raw_gefs[1];
+    }
+    std::vector<std::string> out_gefs = split(output_gef, ',');
+    if (out_gefs.size() != 2) {
+        log_error << "too many files input. ";
+    }
+    protein_output_gef = out_gefs[0];
+    rna_output_gef = out_gefs[1];
+    std::vector<std::string> omics_types = split(omics_type, ',');
+    if (omics_types.size() != 2) {
+        log_error << "too many files input. ";
+    }
+
+    // check omics info
+    std::string protein_omics = getOmicsType(protein_raw_gef, omics_types[0]);
     if (protein_omics.empty()) {
         log_error << errorCode::E_INVALIDPARAM << "get omics type error. ";
         return;
     }
-    std::string rna_omics = getOmicsType(rna_raw_gef, "Transcriptomics");
+    std::string rna_omics = getOmicsType(rna_raw_gef, omics_types[1]);
     if (rna_omics.empty()) {
         log_error << errorCode::E_INVALIDPARAM << "get omics type error. ";
         return;
     }
 
+    // start calibration
     BgefReader protein_info(protein_raw_gef, 1);
     BgefReader rna_info(rna_raw_gef, 1);
 

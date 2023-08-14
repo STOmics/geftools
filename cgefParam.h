@@ -50,7 +50,6 @@ class GEFTOOLS_API cgefParam {
     uint32_t m_minExp = UINT_MAX, m_maxExp = 0, m_minCell = UINT_MAX, m_maxCell = 0;
     uint32_t m_resolution = 500;
     map<string, int> m_map_gene_id;
-    bool has_omics_;
     string stromics_;
 
   private:

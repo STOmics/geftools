@@ -783,13 +783,14 @@ void cellAdjust::createRegionGef(const string &out) {
         if (bin == 100) {
             vector<GeneStat> &geneStat = m_bgefopts->m_vec_bin100;
             std::sort(geneStat.begin(), geneStat.end(), [](const GeneStat &p1, const GeneStat &p2) {
-                if (p1.mid_count > p2.mid_count)
+                if (p1.mid_count > p2.mid_count) {
                     return true;
-                else if (p1.mid_count == p2.mid_count) {
+                } else if (p1.mid_count == p2.mid_count) {
                     int ret = strcmp(p1.gene, p2.gene);
                     return ret < 0;
-                } else
+                } else {
                     return false;
+                }
             });
             bgef_writer.storeStat(geneStat);
         }
@@ -1073,8 +1074,8 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     //  H5P_DEFAULT, gene_exp_data); H5Tclose(memtype); H5Sclose(dataspace_id);
     //  H5Dclose(gene_exp_did);
 
-    if (H5Lexists(file_id, "/cellBin/cellExon", H5P_DEFAULT) > 0)  // 存在exon信息
-    {
+    // 存在exon信息
+    if (H5Lexists(file_id, "/cellBin/cellExon", H5P_DEFAULT) > 0) {
         m_bexon = true;
         // cell exon
         hid_t cellexon_did = H5Dopen(file_id, "/cellBin/cellExon", H5P_DEFAULT);
@@ -1469,10 +1470,8 @@ void cellAdjust::getSapRegion(const string &strinput, int bin, int thcnt, vector
 
     if (bin != 1) {
         int id = 0, m, n;
-        for (uint32_t x = 0; x < dims[0]; x++)  // cols
-        {
-            for (uint32_t y = 0; y < dims[1]; y++)  // rows
-            {
+        for (uint32_t x = 0; x < dims[0]; x++) {      // cols
+            for (uint32_t y = 0; y < dims[1]; y++) {  // rows
                 id = x * dims[1] + y;
                 m = x * bin;
                 n = y * bin;
@@ -1552,10 +1551,8 @@ void cellAdjust::getSapRegionIndex(const string &strinput, int bin, int thcnt, v
     std::vector<int> y_list;
     // if (bin != 1) {
     int id = 0, m, n;
-    for (uint32_t x = 0; x < dims[0]; x++)  // cols
-    {
-        for (uint32_t y = 0; y < dims[1]; y++)  // rows
-        {
+    for (uint32_t x = 0; x < dims[0]; x++) {  // cols
+        for (uint32_t y = 0; y < dims[1]; y++) {  // rows
             id = x * dims[1] + y;
             m = x * bin;
             n = y * bin;

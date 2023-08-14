@@ -301,14 +301,16 @@ class cellUnit {
     }
 
   public:
-    uint16_t m_expcnt = 0;
-    uint16_t m_dnbcnt = 0;
-    uint16_t m_area = 0;
-    uint16_t m_exoncnt = 0;
     int m_cx = 0;
     int m_cy = 0;
+    uint16_t m_area = 0;
     uint32_t m_label = 0;
     uint32_t m_blkid = 0;
+
+    uint16_t m_dnbcnt = 0;
+    uint16_t m_expcnt = 0;
+    uint16_t m_exoncnt = 0;
+
     std::map<uint32_t, gExp> m_map_gExp;  // gid gExp
     vector<short> m_vecborder;
 };

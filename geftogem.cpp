@@ -113,7 +113,7 @@ void geftogem::getBgefExp(hid_t file_id) {
     H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
     attr = H5Aopen(exp_did, "resolution", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &m_resolution);
-    // printf("minx:%d miny:%d maxx:%d maxy:%d\n", m_min_x, m_min_y, m_max_x, m_max_y);
+    log_info << "minx:" << m_min_x <<" miny:" << m_min_y << " maxx:" << m_max_x << " maxy:" << m_max_y;
     H5Aclose(attr);
     H5Tclose(memtype);
     H5Sclose(exp_sid);

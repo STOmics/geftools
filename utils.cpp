@@ -195,6 +195,10 @@ bool is_cgef(string &filename) {
 
 bool is_bgef(string &filename) {
     hid_t file_id = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        return false;
+    }
+    
     bool is_b = false;
     if (H5Lexists(file_id, "geneExp", H5P_DEFAULT)) is_b = true;
     H5Fclose(file_id);

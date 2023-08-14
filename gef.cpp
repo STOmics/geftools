@@ -172,6 +172,8 @@ std::string getOmicsType(const std::string &file_path, const std::string &input_
         }
         H5Aclose(f_attr);
         H5Tclose(omics_strtype);
+        H5Fclose(file_id);
+        return omics;
     } else {
         if (input_omics == "Transcriptomics") {
             log_info << "can not find omics type from file. using default type: Transcriptomics. ";
@@ -184,6 +186,4 @@ std::string getOmicsType(const std::string &file_path, const std::string &input_
         H5Fclose(file_id);
         return omics;
     }
-    H5Fclose(file_id);
-    return omics;
 }

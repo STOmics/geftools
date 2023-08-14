@@ -26,7 +26,7 @@ int cgef(int argc, char *argv[]) {
         "g,raw-gem", "raw gem file", cxxopts::value<std::string>(), "FILE")("p,patch", "Create 3d group patch",
                                                                             cxxopts::value<int>()->default_value("0"))(
         "O,omics", "input omics [request]", cxxopts::value<std::string>()->default_value("Transcriptomics"), "STR")
-        // ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
+        ("w,errorCode-file", "is in saw flow", cxxopts::value<bool>()->default_value("false"))
         ("help", "Print help");
 
     auto result = options.parse(argc, argv);
@@ -37,9 +37,9 @@ int cgef(int argc, char *argv[]) {
         exit(1);
     }
 
-    // if (result.count("errorCode-file") == 1) {
-    //     errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
-    // }
+    if (result.count("errorCode-file") == 1) {
+        errorCode::isInSAWFlow = result["errorCode-file"].as<bool>();
+    }
 
     if (result.count("input-file") != 1) {
         std::cerr << options.help() << std::endl;
@@ -63,12 +63,6 @@ int cgef(int argc, char *argv[]) {
         cgefParam::GetInstance()->m_rawgemstr = "";
     } else {
         cgefParam::GetInstance()->m_rawgemstr = result["raw-gem"].as<string>();
-    }
-
-    if (result.count("omics") != 1) {
-        cgefParam::GetInstance()->has_omics_ = false;
-    } else {
-        cgefParam::GetInstance()->has_omics_ = true;
     }
 
     int rand_celltype_num = result["rand-celltype"].as<int>();
@@ -95,7 +89,7 @@ int cgef(int argc, char *argv[]) {
         generateCgef(cgefParam::GetInstance()->m_outputstr, cgefParam::GetInstance()->m_inputstr,
                      cgefParam::GetInstance()->m_maskstr, cgefParam::GetInstance()->m_block_size, rand_celltype_num);
     } else if (patch == 2) {
-        if (!cgefParam::GetInstance()->has_omics_) {
+        if (result.count("omics") != 1) {
             std::cerr << options.help() << std::endl;
             log_error << errorCode::E_INVALIDPARAM << "The -O,--omics parameter must be given. no omics information.";
             exit(1);

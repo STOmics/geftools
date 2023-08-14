@@ -70,8 +70,8 @@ void GEFTOOLS_API writednb(BgefOptions *opts, BgefWriter &bgef_writer, int bin);
 
 void GEFTOOLS_API StereoDataToGef(const string &output_file, int binsize, int sz, unsigned long *cellptr);
 
-void GEFTOOLS_API MergeProteinAndRnaMatrices(const string &protein_raw_gef, const string &rna_raw_gef,
-                                             const string &protein_output_gef, const string &rna_output_gef);
+void GEFTOOLS_API MergeProteinAndRnaMatrices(const string &input_gef, const string &output_gef,
+                                             const string &omics_type);
 
 void GEFTOOLS_API Gem2Image(const string &gem_path, const string &tif_path);
 
