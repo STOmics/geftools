@@ -49,11 +49,11 @@ Mask::Mask(const string& file, const int block_size[], const unsigned int mask_s
         bool cell_polygon_is_good = p.applyContour(contour);
         if(cell_polygon_is_good){
             p.setBlockId(block_size_);
-            polygons_.emplace_back(std::move(p));
             min_x_ = p.getMinX() < min_x_ ? p.getMinX() : min_x_;
             max_x_ = p.getMaxX() > max_x_ ? p.getMaxX() : max_x_;
             min_y_ = p.getMinY() < min_y_ ? p.getMinY() : min_y_;
             max_y_ = p.getMaxY() > max_y_ ? p.getMaxY() : max_y_;
+            polygons_.emplace_back(std::move(p));
         }
     }
 

@@ -188,7 +188,7 @@ void cgef3d::readmask(const string &strmask)
             maskcellnum++;
         }
     }
-    printf("mask cellnum %d\n", maskcellnum);
+    log_info << util::Format("mask cellnum {0}", maskcellnum);
 }
 
 void cgef3d::addCellborder(vector<float> &vec_border, vector<cv::Point2f> &vborder)

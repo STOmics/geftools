@@ -40,7 +40,7 @@ class GEFTOOLS_API bgefCreater {
     uint32_t m_maxExp = 0;
     uint32_t m_maxExon = 0;
     uint32_t m_resolution = 0;
-    int m_min_x, m_min_y, m_max_x, m_max_y;
+    int m_min_x = INT_MAX, m_min_y = INT_MAX, m_max_x = 0, m_max_y = 0;
     Gene *m_genePtr = nullptr;
     Expression *m_expPtr = nullptr;
     char m_szomics[32] = {0};
@@ -48,7 +48,7 @@ class GEFTOOLS_API bgefCreater {
     GefQueue<gdata> m_queue;
     std::unordered_map<std::string, std::vector<Expression>> m_map_gene_exp;
     std::vector<int> m_range = {INT_MAX, 0, INT_MAX, 0};
-    ;
+
     gzFile m_file;
     std::vector<string> m_vecgenename;
     ThreadPool *m_tpoolPtr = nullptr;

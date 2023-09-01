@@ -140,13 +140,13 @@ struct GEFTOOLS_API GeneStat {
 
 // simple gene data
 struct GEFTOOLS_API GeneS {
-    GeneS(const char *ptr) : geneid(ptr) {};
+    GeneS(const char *ptr) : geneid(ptr), vecptr(nullptr) {};
     const char *geneid;
     std::vector<Expression> *vecptr;
 };
 
 struct GEFTOOLS_API GeneInfo {
-    GeneInfo(const char *ptr) : geneid(ptr), umicnt(0) {};
+    GeneInfo(const char *ptr) : geneid(ptr), umicnt(0), e10(0.0), maxexp(0), maxexon(0), vecptr(nullptr) {};
     const char *geneid;
     unsigned long umicnt;
     float e10;
@@ -319,6 +319,12 @@ struct GEFTOOLS_API ClusterPosition {
     ClusterPosition(int x, int y) : x(x), y(y) {}
     int x;
     int y;
+};
+
+struct MidCntFilter {
+    std::string gene_name;
+    unsigned int min_mid;
+    unsigned int max_mid;
 };
 
 hid_t getMemtypeOfGeneData();

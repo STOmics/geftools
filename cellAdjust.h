@@ -78,16 +78,18 @@ class GEFTOOLS_API cellAdjust {
                                    vector<LabelCellData> &total_data);
     void GetPositionIndexByClusterId(const char *input_file, std::vector<int> cls_id,
                                      std::vector<std::vector<int>> &clusterpos_list);
+    int GenerateFilterBgefFileByMidCount(const std::string &input_file, const std::string &output_file, int bin_size,
+                                         std::vector<MidCntFilter> filter_genes);
 
   private:
     bool m_bexon = false;
-    uint32_t m_genencnt;
-    uint64_t m_geneexpcnt;
-    uint32_t m_cellcnt;
-    int m_offsetX, m_offsetY;
+    uint32_t m_genencnt = 0;
+    uint64_t m_geneexpcnt = 0;
+    uint32_t m_cellcnt = 0;
+    int m_offsetX = 0, m_offsetY = 0;
     vector<string> m_vecgenename;
-    int m_min_x, m_min_y, m_max_x, m_max_y;
-    uint32_t m_resolution;
+    int m_min_x = INT_MAX, m_min_y = INT_MAX, m_max_x = 0, m_max_y = 0;
+    uint32_t m_resolution = 0;
     unordered_map<uint64_t, vector<Dnbs_exon>> m_hash_vecdnb_exon;
     unordered_map<uint32_t, map<uint32_t, uint16_t>> m_hash_filter_cells;
     // map<uint32_t, Rect> m_hash_cellrect;
@@ -120,7 +122,7 @@ class GEFTOOLS_API cellAdjust {
     BinStat *m_parry = nullptr;
     map<unsigned int, vector<cv::Point>> borderDatas;
     bool extend_method_ = false;
-    int lasso_total_area_;
+    int lasso_total_area_ = 0;
 
     cv::Mat multilabel_img;
     int cellbin_minx = INT_MAX, cellbin_miny = INT_MAX, cellbin_maxx = 0, cellbin_maxy = 0;

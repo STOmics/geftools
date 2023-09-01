@@ -213,8 +213,10 @@ void gem2gef(BgefOptions *opts) {
         dnbAttr.max_mid = 0;
         dnbAttr.number = 0;
         unsigned long matrix_len = (unsigned long)(dnbAttr.len_x) * dnbAttr.len_y;
-        printf("bin %d matrix: min_x=%d len_x=%d min_y=%d len_y=%d matrix_len=%lu\n", bin, dnbAttr.min_x, dnbAttr.len_x,
-               dnbAttr.min_y, dnbAttr.len_y, matrix_len);
+
+        log_info << "bin " << bin << " matrix: min_x=" << dnbAttr.min_x << " len_x=" << dnbAttr.len_x
+                 << " min_y=" << dnbAttr.min_y << " len_y=" << dnbAttr.len_y << " matrix_len=" << matrix_len;
+
         if (bin == 1) {
             dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
             assert(dnb_matrix.pmatrix_us);
@@ -526,7 +528,7 @@ void MergeProteinAndRnaMatrices(const string &input_gef, const string &output_ge
         log_error << "too many files input. ";
     } else {
         if ( !(is_bgef(raw_gefs[0]) && is_bgef(raw_gefs[1])) ) {
-            log_error << "input files is wrong. ";
+            log_error << " input files is wrong. ";
             return;
         }
         protein_raw_gef = raw_gefs[0];

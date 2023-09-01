@@ -69,18 +69,22 @@ hid_t getMemtypeOfOlderCellExpData() {
 
 bool isOlderCellExpDataVersion(hid_t fileId) {
     unsigned int geftoolVersion[3] = {0};
-    hid_t attr = H5Aopen(fileId, "geftool_ver", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_UINT32, geftoolVersion);
-    printf("version is %d.%d.%d ", geftoolVersion[0], geftoolVersion[1], geftoolVersion[2]);
+    if (H5Aexists(fileId, "geftool_ver") > 0) {
+        hid_t attr = H5Aopen(fileId, "geftool_ver", H5P_DEFAULT);
+        H5Aread(attr, H5T_NATIVE_UINT32, geftoolVersion);
+        log_info << util::Format("version is {0}.{1}.{2} ", geftoolVersion[0], geftoolVersion[1], geftoolVersion[2]);
 
-    if (geftoolVersion[0] == 0 && geftoolVersion[1] <= 7) {
-        if (geftoolVersion[1] == 7 && geftoolVersion[2] >= 6) {
-            return false;
+        if (geftoolVersion[0] == 0 && geftoolVersion[1] <= 7) {
+            if (geftoolVersion[1] == 7 && geftoolVersion[2] >= 6) {
+                return false;
+            } else {
+                return true;
+            }
         } else {
-            return true;
+            return false;
         }
     } else {
-        return false;
+        return true;
     }
 }
 

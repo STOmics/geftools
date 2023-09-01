@@ -196,7 +196,8 @@ void bgefCreater::readbgef(const string &strin) {
     }
     H5Tclose(strtype);
     H5Fclose(file_id);
-    printf("gene:%ld geneexp:%ld\n", m_genencnt, m_geneexpcnt);
+    log_info << util::Format("gene:{0} geneexp:{1}", m_genencnt, m_geneexpcnt);
+
     int x_len = (m_max_x - m_min_x) / m_bin * m_bin + 1;
     int y_len = (m_max_y - m_min_y) / m_bin * m_bin + 1;
     // assert(x_len == m_outimg.cols && y_len == m_outimg.rows);
@@ -266,7 +267,7 @@ void bgefCreater::readgem(const string &strin) {
     m_max_y = offset_y + (m_range[3] - m_range[2]);
     printf("minx:%d miny:%d maxx:%d maxy:%d\n", m_min_x, m_min_y, m_max_x, m_max_y);
     m_genencnt = m_map_gene_exp.size();
-    printf("gene:%ld geneexp:%ld\n", m_genencnt, m_geneexpcnt);
+    log_info << util::Format("gene:{0} geneexp:{1}", m_genencnt, m_geneexpcnt);
 }
 
 void bgefCreater::getmaskgenedata_bgef(vector<Gene> &vgene, vector<Expression> &vgExp, vector<uint8_t> &vexon) {
@@ -312,7 +313,7 @@ void bgefCreater::getmaskgenedata_bgef(vector<Gene> &vgene, vector<Expression> &
             delete ptr;
         }
     }
-    printf("new gcnt:%ld new gexp:%ld\n", ngcnt, offset);
+    log_info << util::Format("new gcnt:{0} new gexp:{1}", ngcnt, offset);
 }
 
 void bgefCreater::getmaskgenedata_gem(vector<Gene> &vgene, vector<Expression> &vgExp, vector<uint8_t> &vexon) {
@@ -359,7 +360,7 @@ void bgefCreater::getmaskgenedata_gem(vector<Gene> &vgene, vector<Expression> &v
             delete ptr;
         }
     }
-    printf("new gcnt:%ld new gexp:%ld\n", ngcnt, offset);
+    log_info << util::Format("new gcnt:{0} new gexp:{1}", ngcnt, offset);
 }
 
 void bgefCreater::writebgef(vector<Gene> &vgene, vector<Expression> &vgExp, vector<uint8_t> &vecexon,

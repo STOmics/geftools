@@ -52,7 +52,7 @@ S32 getStrfTime() {
     return tmp;
 };
 
-time_t printTime(time_t prev, string message) {
+time_t printTime(time_t prev, const string &message) {
     time_t cur;
     time(&cur);
     std::cout << std::setw(30) << message;
@@ -62,7 +62,7 @@ time_t printTime(time_t prev, string message) {
     return cur;
 }
 
-unsigned long printCpuTime(unsigned long prev, string message) {
+unsigned long printCpuTime(unsigned long prev, const string &message) {
     unsigned long cur = clock();
     std::cout << std::setw(30) << message;
     printf(" - %.6f cpu sec\n", static_cast<double>(cur - prev) / CLOCKS_PER_SEC);
@@ -149,7 +149,7 @@ bool readline(gzFile f, std::string &line) {
     return true;
 }
 
-bool decideSuffix(string &filename, string suffix) {
+bool decideSuffix(string &filename, const string &suffix) {
     //    char dot = '.';
     //    char suff[10] = {0};
     //    int j = 0;

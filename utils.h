@@ -17,10 +17,10 @@
 #include <string>
 #include <unordered_map>
 
+#include "Format.h"
 #include "hdf5.h"
 #include "opencv2/opencv.hpp"
 #include "tiffio.h"
-#include "Format.h"
 
 #ifdef _WIN32
 #define GEFTOOLS_API __declspec(dllexport)
@@ -32,7 +32,7 @@ using namespace std;
 // using namespace cv;
 
 const int READLEN = 256 * 1024;
-const unsigned int GEFVERSION[3] = {0, 8, 5};
+const unsigned int GEFVERSION[3] = {0, 8, 6};
 const int BORDERCNT = 32;
 
 namespace errorCode {
@@ -100,7 +100,7 @@ vector<string> readLines(const string& filename);
  * @param message  Message of the step.
  * @return Current time, used as the next previous time.
  */
-time_t printTime(time_t prev, string message);
+time_t printTime(time_t prev, const string& message);
 
 /**
  * @brief Print cpu time.
@@ -108,7 +108,7 @@ time_t printTime(time_t prev, string message);
  * @param message  Message of the step.
  * @return Current clock time, used as the next previous clock time.
  */
-unsigned long printCpuTime(unsigned long prev, string message);
+unsigned long printCpuTime(unsigned long prev, const string& message);
 
 /**
  * @brief Gets the format string of now time.
@@ -209,7 +209,7 @@ void csr_tocsc(const I n_row, const I n_col, const I Ap[], const I Aj[], const T
     }
 }
 
-bool decideSuffix(string& filename, string suffix);
+bool decideSuffix(string& filename, const string& suffix);
 
 /**
  * @brief Verifies that the target object exists
