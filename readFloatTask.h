@@ -13,6 +13,9 @@ class readFloatTask:public ITask
 public:
     readFloatTask();
     ~readFloatTask();
+    readFloatTask(readFloatTask const &) = delete;
+    readFloatTask &operator=(readFloatTask const &) = delete;
+
     void doTask();
 protected:
     bool readbuf();

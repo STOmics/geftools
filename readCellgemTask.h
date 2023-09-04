@@ -21,6 +21,9 @@ class readCellgemTask : public ITask {
   public:
     readCellgemTask();
     ~readCellgemTask();
+    readCellgemTask(readCellgemTask const &) = delete;
+    readCellgemTask &operator=(readCellgemTask const &) = delete;
+
     void doTask();
 
   protected:

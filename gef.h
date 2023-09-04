@@ -226,10 +226,10 @@ struct GEFTOOLS_API GeneData {
         max_mid_count = m;
     }
     char gene_name[64] = {0};
-    unsigned int offset;  ///< Offset of current gene in geneExp, 0-based
-    unsigned int cell_count;
-    unsigned int exp_count;
-    unsigned short max_mid_count;  ///< max MID count of current gene
+    unsigned int offset {0};  ///< Offset of current gene in geneExp, 0-based
+    unsigned int cell_count {0};
+    unsigned int exp_count {0};
+    unsigned short max_mid_count {0};  ///< max MID count of current gene
 };
 
 struct GEFTOOLS_API CellExpData {
@@ -243,16 +243,16 @@ struct GEFTOOLS_API CellExpData {
     //    }
     CellExpData() = default;
     CellExpData(unsigned int id, unsigned short cnt) : gene_id(id), count(cnt) {}
-    unsigned int gene_id;
-    unsigned short count;
+    unsigned int gene_id {0};
+    unsigned short count {0};
 };
 
 // For compatibility with older versions
 struct GEFTOOLS_API olderCellExpData {
     olderCellExpData() = default;
     olderCellExpData(unsigned short id, unsigned short cnt) : gene_id(id), count(cnt) {}
-    unsigned short gene_id;
-    unsigned short count;
+    unsigned short gene_id {0};
+    unsigned short count {0};
 };
 
 struct GEFTOOLS_API GeneExpData {
@@ -296,10 +296,10 @@ struct GEFTOOLS_API LabelGeneData {
 struct GEFTOOLS_API LabelCellData {
     LabelCellData() = default;
     LabelCellData(uint16_t a, uint16_t b, float c, uint32_t d) : cluster_id(a), mid_cnt(b), area(c), cell_id(d) {}
-    uint16_t cluster_id;
-    uint16_t mid_cnt;
-    float area;
-    uint32_t cell_id;
+    uint16_t cluster_id {0};
+    uint16_t mid_cnt {0};
+    float area {0.0};
+    uint32_t cell_id {0};
 };
 
 struct GEFTOOLS_API sapCgefData {

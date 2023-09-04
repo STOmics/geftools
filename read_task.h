@@ -27,6 +27,9 @@ class ReadTask : public ITask {
     ReadTask(bool bexon, gzFile file, std::vector<int> &range,
              std::unordered_map<std::string, std::vector<Expression>> &map_gene_exp);
     ~ReadTask();
+    ReadTask(ReadTask const &) = delete;
+    ReadTask &operator=(ReadTask const &) = delete; 
+
     void doTask();
 
   private:

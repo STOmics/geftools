@@ -25,7 +25,7 @@
     "#OffsetX=%d\n"           \
     "#OffsetY=%d\n"
 
-#define CGEM_HEADER            \
+#define CGEM_HEADER           \
     "#FileFormat=GEMv%d.%d\n" \
     "#SortedBy=None\n"        \
     "#BinType=%s\n"           \
@@ -113,7 +113,7 @@ void geftogem::getBgefExp(hid_t file_id) {
     H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
     attr = H5Aopen(exp_did, "resolution", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &m_resolution);
-    log_info << "minx:" << m_min_x <<" miny:" << m_min_y << " maxx:" << m_max_x << " maxy:" << m_max_y;
+    log_info << "minx:" << m_min_x << " miny:" << m_min_y << " maxx:" << m_max_x << " maxy:" << m_max_y;
     H5Aclose(attr);
     H5Tclose(memtype);
     H5Sclose(exp_sid);
@@ -183,7 +183,8 @@ void geftogem::getdnb() {
                 m_hash_vecdnb_exon[l_id].emplace_back(i, ptr[j].count, ptr[j].exon);
             }
         }
-        printf("gene:%d geneexp:%d hashcnt:%d\n", m_genencnt, m_geneexpcnt, m_hash_vecdnb_exon.size());
+        log_info << util::Format("gene:{0} geneexp:{1} hashcnt:{2}", m_genencnt, m_geneexpcnt,
+                                 m_hash_vecdnb_exon.size());
     } else {
         for (uint32_t i = 0; i < m_genencnt; i++) {
             m_vecgenename.emplace_back(m_genePtr[i].gene);
@@ -199,7 +200,8 @@ void geftogem::getdnb() {
                 m_hash_vecdnb[l_id].emplace_back(i, ptr[j].count);
             }
         }
-        printf("gene:%d geneexp:%d hashcnt:%d\n", m_genencnt, m_geneexpcnt, m_hash_vecdnb.size());
+        log_info << util::Format("gene:{0} geneexp:{1} hashcnt:{2}", m_genencnt, m_geneexpcnt,
+                                 m_hash_vecdnb_exon.size());
     }
     free(m_genePtr);
     free(m_expPtr);

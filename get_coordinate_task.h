@@ -27,6 +27,9 @@ class GetCoordinateTask : public ITask {
     GetCoordinateTask(gzFile file, int file_column, std::vector<int> &image_range,
                       std::vector<CoordinateInfo> &coordinate_info);
     ~GetCoordinateTask();
+    GetCoordinateTask(GetCoordinateTask const &) = delete;
+    GetCoordinateTask &operator=(GetCoordinateTask const &) = delete;
+
     void doTask();
 
   private:
