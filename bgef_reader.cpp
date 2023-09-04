@@ -12,7 +12,9 @@
 #include "dnb_merge_task.h"
 #include "getBgefExpTask.h"
 #include "getdataTask.h"
+#include "getleveldnbtask.h"
 #include "khash.h"
+#include "timer.h"
 
 #define FILE_HEADER           \
     "#FileFormat=GEMv%d.%d\n" \
@@ -35,6 +37,7 @@
 KHASH_MAP_INIT_INT64(m64, unsigned int)
 
 std::mutex getdataTask::m_mtx;
+std::mutex getleveldnbtask::m_mtx;
 
 BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool verbose) {
     printf("path:%s bin:%d\n", filename.c_str(), bin_size);
@@ -1533,4 +1536,81 @@ Expression *BgefReader::getExpression_abs() {
         }
     }
     return expressions_;
+}
+
+uint32_t BgefReader::getleveldnb(bool bfilter, bool btop, uint32_t level, uint32_t offset_x, uint32_t offset_y,
+                                 uint32_t rows, uint32_t cols, void *pdnbbuf) {
+    timer st("getleveldnb");
+    if (whole_exp_dataset_id_ == 0) openWholeExpSpace();
+
+    uint32_t maxmid = 0;
+    hid_t attr = H5Aopen(whole_exp_dataset_id_, "maxMID", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_INT, &maxmid);
+    H5Aclose(attr);
+
+    hsize_t total = rows;
+    total *= cols;
+
+    hsize_t start[2] = {offset_x, offset_y}, count[2] = {rows, cols}, offset_out[2] = {0, 0};
+
+    hid_t memtype = H5Dget_type(whole_exp_dataset_id_);
+    hid_t memspace = H5Screate_simple(2, count, NULL);
+    H5Sselect_hyperslab(memspace, H5S_SELECT_SET, offset_out, nullptr, count, nullptr);
+    H5Sselect_hyperslab(whole_exp_dataspace_id_, H5S_SELECT_SET, start, NULL, count, NULL);
+
+    BinStatUS *pdataus = nullptr;
+    BinStat *pdata = nullptr;
+    if (bin_size_ == 1) {
+        pdataus = (BinStatUS *)calloc(total, sizeof(BinStatUS));
+        H5Dread(whole_exp_dataset_id_, memtype, memspace, whole_exp_dataspace_id_, H5P_DEFAULT, pdataus);
+    } else {
+        BinStat *pdata = (BinStat *)calloc(total, sizeof(BinStat));
+        H5Dread(whole_exp_dataset_id_, memtype, memspace, whole_exp_dataspace_id_, H5P_DEFAULT, pdata);
+    }
+    H5Tclose(memtype);
+    H5Sclose(memspace);
+
+    st.showgap("read time");
+
+    level_fractal lf;
+    lf.fractal_size = pow(3, level);       // 基础分形大小
+    lf.fractal_num = 3 * lf.fractal_size;  // 每个基础分形中点的数目
+    lf.mid_fractal_coor = (lf.fractal_size + (lf.fractal_size - 1) / 2) * bin_size_;  // 每层基础分形中心点的坐标
+    lf.start_fractal_coor = (lf.mid_fractal_coor - lf.fractal_size) * bin_size_;
+    lf.end_fractal_coor = (lf.mid_fractal_coor + lf.fractal_size) * bin_size_;
+
+    dnbbuf dbuf;
+    dbuf.sz = 0;
+    dbuf.cnt = 0;
+    dbuf.pbuf = pdnbbuf;
+
+    if (rows >= 8192) {
+        ThreadPool thpool(n_thread_);
+        uint32_t start = 0;
+        uint32_t len = total / n_thread_ + 1;
+        for (uint32_t i = 0; i < n_thread_; i++) {
+            start = i * len;
+            if (i == n_thread_ - 1) {
+                len = total - start;
+            }
+            getleveldnbtask *ptask = new getleveldnbtask(bfilter, btop, bin_size_, start, len, cols, offset_x, offset_y,
+                                                         maxmid, lf, dbuf, pdataus, pdata);
+            thpool.addTask(ptask);
+        }
+
+        thpool.waitTaskDone();
+    } else {
+        getleveldnbtask ptask(bfilter, btop, bin_size_, 0, total, cols, offset_x, offset_y, maxmid, lf, dbuf, pdataus,
+                              pdata);
+        ptask.doTask();
+    }
+    printf("%d\n", dbuf.cnt);
+    if (pdataus) {
+        free(pdataus);
+    }
+    if (pdata) {
+        free(pdata);
+    }
+    st.showgap("get dnb time");
+    return dbuf.cnt;
 }
