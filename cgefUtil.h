@@ -294,10 +294,10 @@ class cellUnit {
             m_map_gExp[dnb.geneid].midcnt += dnb.midcnt;
             m_map_gExp[dnb.geneid].exoncnt += dnb.exoncnt;
 
-            m_dnbcnt++;
             m_expcnt += dnb.midcnt;
             m_exoncnt += dnb.exoncnt;
         }
+        m_dnbcnt++;
     }
 
   public:

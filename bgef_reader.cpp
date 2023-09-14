@@ -1539,9 +1539,18 @@ Expression *BgefReader::getExpression_abs() {
 }
 
 uint32_t BgefReader::getleveldnb(bool bfilter, bool btop, uint32_t level, uint32_t offset_x, uint32_t offset_y,
-                                 uint32_t rows, uint32_t cols, void *pdnbbuf) {
+                                 uint32_t rows, uint32_t cols, void *pdnbbuf, vector<unsigned long long> &vecindex) {
     timer st("getleveldnb");
     if (whole_exp_dataset_id_ == 0) openWholeExpSpace();
+    if ((offset_x >= whole_exp_matrix_shape_[0]) || (offset_y >= whole_exp_matrix_shape_[1])) {
+        log_info << "out of range. please check. ";
+    }
+    if ((rows + offset_x) >= whole_exp_matrix_shape_[0]) {
+        rows = whole_exp_matrix_shape_[0] - offset_x;
+    }
+    if ((cols + offset_y) >= whole_exp_matrix_shape_[1]) {
+        cols = whole_exp_matrix_shape_[1] - offset_y;
+    }
 
     uint32_t maxmid = 0;
     hid_t attr = H5Aopen(whole_exp_dataset_id_, "maxMID", H5P_DEFAULT);
@@ -1564,7 +1573,10 @@ uint32_t BgefReader::getleveldnb(bool bfilter, bool btop, uint32_t level, uint32
         pdataus = (BinStatUS *)calloc(total, sizeof(BinStatUS));
         H5Dread(whole_exp_dataset_id_, memtype, memspace, whole_exp_dataspace_id_, H5P_DEFAULT, pdataus);
     } else {
-        BinStat *pdata = (BinStat *)calloc(total, sizeof(BinStat));
+        pdata = (BinStat *)calloc(total, sizeof(BinStat));
+        memtype = H5Tcreate(H5T_COMPOUND, sizeof(BinStat));
+        H5Tinsert(memtype, "MIDcount", HOFFSET(BinStat, mid_count), H5T_NATIVE_UINT);
+        H5Tinsert(memtype, "genecount", HOFFSET(BinStat, gene_count), H5T_NATIVE_USHORT);
         H5Dread(whole_exp_dataset_id_, memtype, memspace, whole_exp_dataspace_id_, H5P_DEFAULT, pdata);
     }
     H5Tclose(memtype);
@@ -1575,33 +1587,37 @@ uint32_t BgefReader::getleveldnb(bool bfilter, bool btop, uint32_t level, uint32
     level_fractal lf;
     lf.fractal_size = pow(3, level);       // 基础分形大小
     lf.fractal_num = 3 * lf.fractal_size;  // 每个基础分形中点的数目
-    lf.mid_fractal_coor = (lf.fractal_size + (lf.fractal_size - 1) / 2) * bin_size_;  // 每层基础分形中心点的坐标
-    lf.start_fractal_coor = (lf.mid_fractal_coor - lf.fractal_size) * bin_size_;
-    lf.end_fractal_coor = (lf.mid_fractal_coor + lf.fractal_size) * bin_size_;
+    lf.mid_fractal_coor = lf.fractal_size + (lf.fractal_size - 1) / 2;  // 每层基础分形中心点的坐标
+    lf.start_fractal_coor = lf.mid_fractal_coor - lf.fractal_size;
+    lf.end_fractal_coor = lf.mid_fractal_coor + lf.fractal_size;
 
     dnbbuf dbuf;
     dbuf.sz = 0;
     dbuf.cnt = 0;
     dbuf.pbuf = pdnbbuf;
 
-    if (rows >= 8192) {
-        ThreadPool thpool(n_thread_);
-        uint32_t start = 0;
-        uint32_t len = total / n_thread_ + 1;
-        for (uint32_t i = 0; i < n_thread_; i++) {
-            start = i * len;
-            if (i == n_thread_ - 1) {
-                len = total - start;
-            }
-            getleveldnbtask *ptask = new getleveldnbtask(bfilter, btop, bin_size_, start, len, cols, offset_x, offset_y,
-                                                         maxmid, lf, dbuf, pdataus, pdata);
-            thpool.addTask(ptask);
-        }
+    // if(rows >= 8192)
+    // {
+    //     ThreadPool thpool(n_thread_);
+    //     uint32_t start = 0;
+    //     uint32_t len = total/n_thread_+1;
+    //     for(uint32_t i=0;i<n_thread_;i++)
+    //     {
+    //         start = i*len;
+    //         if(i == n_thread_-1)
+    //         {
+    //             len = total - start;
+    //         }
+    //         getleveldnbtask *ptask = new getleveldnbtask(bfilter, btop, bin_size_, start, len, cols, offset_x,
+    //         offset_y, maxmid, lf, dbuf, pdataus, pdata); thpool.addTask(ptask);
+    //     }
 
-        thpool.waitTaskDone();
-    } else {
-        getleveldnbtask ptask(bfilter, btop, bin_size_, 0, total, cols, offset_x, offset_y, maxmid, lf, dbuf, pdataus,
-                              pdata);
+    //     thpool.waitTaskDone();
+    // }
+    // else
+    {
+        getleveldnbtask ptask(bfilter, btop, bin_size_, 0, total, cols, offset_x, offset_y, maxmid, lf, dbuf,
+                              whole_exp_matrix_shape_[1], vecindex, pdataus, pdata);
         ptask.doTask();
     }
     printf("%d\n", dbuf.cnt);

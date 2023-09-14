@@ -8,6 +8,7 @@
 #ifndef GEFTOOLS_CELLADJUST_H
 #define GEFTOOLS_CELLADJUST_H
 
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -42,6 +43,9 @@ class GEFTOOLS_API cellAdjust {
   public:
     cellAdjust();
     ~cellAdjust();
+    cellAdjust(cellAdjust const &) = delete;
+    cellAdjust &operator=(cellAdjust const &) = delete;
+
     void readBgef(const string &strinput);
     void readCgef(const string &strinput);
     uint32_t getCellLabelgem(vector<string> &genename, vector<cellgem_label> &vecCellgem);
@@ -80,6 +84,9 @@ class GEFTOOLS_API cellAdjust {
                                      std::vector<std::vector<int>> &clusterpos_list);
     int GenerateFilterBgefFileByMidCount(const std::string &input_file, const std::string &output_file, int bin_size,
                                          std::vector<MidCntFilter> filter_genes);
+    int GenerateFilterBgefDuration();
+    void DoGenerate(const std::string &input_file, const std::string &output_file, int bin_size,
+                    std::vector<MidCntFilter> filter_genes);
 
   private:
     bool m_bexon = false;
@@ -126,6 +133,9 @@ class GEFTOOLS_API cellAdjust {
 
     cv::Mat multilabel_img;
     int cellbin_minx = INT_MAX, cellbin_miny = INT_MAX, cellbin_maxx = 0, cellbin_maxy = 0;
+
+    std::thread generate_bgef_thread_;
+    int process_rate_ = 0;
 };
 
 #endif

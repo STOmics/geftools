@@ -30,6 +30,7 @@ cellAdjust::~cellAdjust() {
     if (m_bgeffile_id) {
         H5Fclose(m_bgeffile_id);
     }
+    if (generate_bgef_thread_.joinable()) generate_bgef_thread_.join();
 }
 
 void cellAdjust::readBgef(const string &strinput) {
@@ -2018,7 +2019,6 @@ void cellAdjust::GetPositionIndexByClusterId(const char *input_file, std::vector
     H5Fclose(anndata_fileId);
 
     // std::vector<ClusterPosition> clusterpos_list;
-    // get coordinate   TODO 待优化
     std::vector<int> x_cod;
     std::vector<int> y_cod;
     for (int i = 0; i < cls_id.size(); i++) {
@@ -2035,7 +2035,7 @@ void cellAdjust::GetPositionIndexByClusterId(const char *input_file, std::vector
 
 int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, const std::string &output_file,
                                                  int bin_size, std::vector<MidCntFilter> filter_genes) {
-    // 1. get gene info at bin1 and binx
+    // check input param
     if (filter_genes.empty()) {
         log_info << "input filter genes is empty. ";
         return -1;
@@ -2052,7 +2052,25 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
         return -1;
     }
     H5Fclose(file_id);
+    // do generate
+    process_rate_ = 0;
+    generate_bgef_thread_ = std::thread(&cellAdjust::DoGenerate, this, input_file, output_file, bin_size, filter_genes);
+}
 
+int cellAdjust::GenerateFilterBgefDuration() {
+    // get rate of progress
+    if ((process_rate_ == -1) || (process_rate_ == 3)) {
+        if (generate_bgef_thread_.joinable()) generate_bgef_thread_.join();
+        return process_rate_;
+    }
+    return process_rate_;
+}
+
+void cellAdjust::DoGenerate(const std::string &input_file, const std::string &output_file, int bin_size,
+                            std::vector<MidCntFilter> filter_genes) {
+    // get gene info at bin1 and binx
+
+    process_rate_ = 1;
     // std::unordered_map<std::string, std::vector<Expression>> map_gene_info_bin1;
     m_bgefopts = BgefOptions::GetInstance();
     m_bgefopts->map_gene_exp_.clear();
@@ -2072,7 +2090,7 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
         bgef_reader.getGeneExpression(map_gene_info_binx);
     }
 
-    // 2. get filter data according input data
+    // get filter data according input data
     std::map<std::string, std::set<uint64_t>> filter_data;
 
     for (auto itor : filter_genes) {
@@ -2090,14 +2108,16 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
             }
         } else {
             log_info << "error filter gene not in files. ";
-            return -1;
+            process_rate_ = -1;
+            return;
         }
     }
 
-    // 3. filter bin1 info
+    // filter bin1 info
     if (filter_data.empty()) {
         log_info << "error filter gene is empty. ";
-        return -1;
+        process_rate_ = -1;
+        return;
     }
     for (auto itor : filter_data) {
         if (m_bgefopts->map_gene_exp_.find(itor.first) != m_bgefopts->map_gene_exp_.end()) {
@@ -2117,21 +2137,24 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
             }
         } else {
             log_info << "error filter gene process error. ";
-            return -1;
+            process_rate_ = -1;
+            return;
         }
     }
 
     // 4. generate bgef file according bin1 info
     if (m_bgefopts->map_gene_exp_.size() == 0) {
         log_error << "region has no information. please check. ";
-        return -1;
+        process_rate_ = -1;
+        return;
     }
 
-    file_id = H5Fopen(input_file.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    hid_t file_id = H5Fopen(input_file.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     hid_t gid = H5Gopen(file_id, "/geneExp", H5P_DEFAULT);
     if (gid < 0) {
         log_info << "can not find input spatial bin gef file... ";
-        return -1;
+        process_rate_ = -1;
+        return;
     }
     std::vector<std::string> group_names;
     herr_t idx = H5Literate(gid, H5_INDEX_NAME, H5_ITER_INC, NULL, file_info, &group_names);
@@ -2162,7 +2185,7 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
     H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
     attr = H5Aopen(exp_did, "resolution", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &m_resolution);
-    printf("minx:%d miny:%d maxx:%d maxy:%d\n", m_min_x, m_min_y, m_max_x, m_max_y);
+    log_info << util::Format("minx:{0} miny:{1} maxx:{2} maxy:{3}", m_min_x, m_min_y, m_max_x, m_max_y);
     H5Aclose(attr);
     H5Dclose(exp_did);
 
@@ -2173,6 +2196,7 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
     BgefWriter bgef_writer(output_file, false, m_bexon, m_bgefopts->m_stromics);
     bgef_writer.setResolution(m_resolution);
 
+    // do bin , write to bgef file
     int genecnt = 0;
     for (unsigned int bin : m_bgefopts->bin_sizes_) {
         auto &dnb_matrix = m_bgefopts->dnbmatrix_;
@@ -2199,14 +2223,16 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
             assert(dnb_matrix.pmatrix_us);
             if (!dnb_matrix.pmatrix_us) {
                 log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                return -1;
+                process_rate_ = -1;
+                return;
             }
             if (m_bexon) {
                 dnb_matrix.pexon16 = (unsigned short *)calloc(matrix_len, 2);
                 assert(dnb_matrix.pexon16);
                 if (!dnb_matrix.pexon16) {
                     log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                    return -1;
+                    process_rate_ = -1;
+                    return;
                 }
             }
         } else {
@@ -2214,17 +2240,21 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
             assert(dnb_matrix.pmatrix);
             if (!dnb_matrix.pmatrix) {
                 log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                return -1;
+                process_rate_ = -1;
+                return;
             }
             if (m_bexon) {
                 dnb_matrix.pexon32 = (unsigned int *)calloc(matrix_len, 4);
                 assert(dnb_matrix.pexon32);
                 if (!dnb_matrix.pexon32) {
                     log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                    return -1;
+                    process_rate_ = -1;
+                    return;
                 }
             }
         }
+
+        process_rate_ = 2;
 
         for (int i = 0; i < m_bgefopts->thread_; i++) {
             auto *task = new DnbMergeTask(m_bgefopts->map_gene_exp_.size(), i, bin);
@@ -2352,5 +2382,6 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
             }
         }
     }
-    return 0;
+    process_rate_ = 3;
+    return;
 }

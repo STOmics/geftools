@@ -215,7 +215,7 @@ class GEFTOOLS_API BgefReader {
     bool isContainExon() { return m_bexon; }
     void openExonSpace(int bin_size);
     uint32_t getleveldnb(bool bfilter, bool btop, uint32_t level, uint32_t offset_x, uint32_t offset_y, uint32_t rows,
-                         uint32_t cols, void *pdnbbuf);
+                         uint32_t cols, void *pdnbbuf, vector<unsigned long long> &vecindex);
 };
 
 #endif  // GEFTOOLS__COMMON_BIN_H_
