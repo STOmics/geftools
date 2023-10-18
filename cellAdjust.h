@@ -82,11 +82,14 @@ class GEFTOOLS_API cellAdjust {
                                    vector<LabelCellData> &total_data);
     void GetPositionIndexByClusterId(const char *input_file, std::vector<int> cls_id,
                                      std::vector<std::vector<int>> &clusterpos_list);
-    int GenerateFilterBgefFileByMidCount(const std::string &input_file, const std::string &output_file, int bin_size,
-                                         std::vector<MidCntFilter> filter_genes);
+    int GenerateFilterBgefFileByMidCount(const std::string input_file, const std::string output_file, int bin_size,
+                                         std::vector<MidCntFilter> filter_genes, bool only_filter);
     int GenerateFilterBgefDuration();
-    void DoGenerate(const std::string &input_file, const std::string &output_file, int bin_size,
-                    std::vector<MidCntFilter> filter_genes);
+    
+    void DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes, bool only_filter);
+
+    void FilterGeneInfo(int bin_size, std::vector<MidCntFilter> filter_genes,
+                        std::map<std::string, std::set<uint64_t>> &filter_data, bool only_filter);
 
   private:
     bool m_bexon = false;

@@ -2033,8 +2033,9 @@ void cellAdjust::GetPositionIndexByClusterId(const char *input_file, std::vector
     clusterpos_list.push_back(y_cod);
 }
 
-int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, const std::string &output_file,
-                                                 int bin_size, std::vector<MidCntFilter> filter_genes) {
+int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string input_file, const std::string output_file,
+                                                 int bin_size, std::vector<MidCntFilter> filter_genes,
+                                                 bool only_filter) {
     // check input param
     if (filter_genes.empty()) {
         log_info << "input filter genes is empty. ";
@@ -2054,7 +2055,13 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string &input_file, 
     H5Fclose(file_id);
     // do generate
     process_rate_ = 0;
-    generate_bgef_thread_ = std::thread(&cellAdjust::DoGenerate, this, input_file, output_file, bin_size, filter_genes);
+    log_info << filter_genes.size();
+    BgefOptions::GetInstance()->input_file_ = input_file;
+    BgefOptions::GetInstance()->output_file_ = output_file;
+
+    // generate_bgef_thread_ = std::thread(&cellAdjust::DoGenerate, this, bin_size, filter_genes, only_filter);
+    DoGenerate(bin_size, filter_genes, only_filter);
+    return 0;
 }
 
 int cellAdjust::GenerateFilterBgefDuration() {
@@ -2066,79 +2073,181 @@ int cellAdjust::GenerateFilterBgefDuration() {
     return process_rate_;
 }
 
-void cellAdjust::DoGenerate(const std::string &input_file, const std::string &output_file, int bin_size,
-                            std::vector<MidCntFilter> filter_genes) {
-    // get gene info at bin1 and binx
+void cellAdjust::FilterGeneInfo(int bin_size, std::vector<MidCntFilter> filter_genes,
+                                std::map<std::string, std::set<uint64_t>> &filter_data, bool only_filter) {
+    timer st(__FUNCTION__);
 
-    process_rate_ = 1;
-    // std::unordered_map<std::string, std::vector<Expression>> map_gene_info_bin1;
-    m_bgefopts = BgefOptions::GetInstance();
-    m_bgefopts->map_gene_exp_.clear();
-    std::unordered_map<std::string, std::vector<Expression>> map_gene_info_binx;
-
-    {
-        BgefReader bgef_reader(input_file, 1);
-        bgef_reader.getGeneExpression(m_bgefopts->map_gene_exp_);
-        m_bexon = bgef_reader.isExonExist();
-        log_info << "before filter size is : " << bgef_reader.getExpressionNum();
+    std::unordered_map<std::string, MidCntFilter> filter_gene_map;
+    for (auto itor : filter_genes) {
+        filter_gene_map.insert(std::unordered_map<std::string, MidCntFilter>::value_type(itor.gene_name, itor));
     }
 
     if (1 == bin_size) {
-        map_gene_info_binx = m_bgefopts->map_gene_exp_;
-    } else {
-        BgefReader bgef_reader(input_file, bin_size);
-        bgef_reader.getGeneExpression(map_gene_info_binx);
-    }
+        m_bgefopts = BgefOptions::GetInstance();
+        m_bgefopts->map_gene_exp_.clear();
 
-    // get filter data according input data
-    std::map<std::string, std::set<uint64_t>> filter_data;
+        BgefReader bgef_reader(BgefOptions::GetInstance()->input_file_, 1);
+        m_bexon = bgef_reader.isExonExist();
+        log_info << "before filter size is : " << bgef_reader.getExpressionNum();
 
-    for (auto itor : filter_genes) {
-        if (map_gene_info_binx.find(itor.gene_name) != map_gene_info_binx.end()) {
-            std::set<uint64_t> tmp;
-            uint64_t idx;
-            for (auto itor_exp : map_gene_info_binx[itor.gene_name]) {
-                if ((itor_exp.count < itor.min_mid) || (itor_exp.count > itor.max_mid)) {
-                    idx = itor_exp.x;
-                    tmp.emplace((idx << 32 | itor_exp.y));
+        Gene *gene = bgef_reader.getGene();
+        Expression *expression = bgef_reader.getExpression();
+
+        if (only_filter) {
+            for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
+                if (filter_gene_map.find(gene[gene_id].gene) != filter_gene_map.end()) {
+                    unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+                    vector<Expression> exps;
+                    for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                        if ((expression[i].count >= filter_gene_map[gene[gene_id].gene].min_mid) ||
+                            (expression[i].count <= filter_gene_map[gene[gene_id].gene].max_mid)) {
+                            exps.emplace_back(expression[i]);
+                        }
+                    }
+                    if (!exps.empty()) {
+                        m_bgefopts->map_gene_exp_.insert(
+                            unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
+                    }
                 }
             }
-            if (!tmp.empty()) {
-                filter_data.insert(std::map<std::string, std::set<uint64_t>>::value_type(itor.gene_name, tmp));
-            }
         } else {
-            log_info << "error filter gene not in files. ";
+            for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
+                if (filter_gene_map.find(gene[gene_id].gene) != filter_gene_map.end()) {
+                    unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+                    vector<Expression> exps;
+                    for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                        if ((expression[i].count >= filter_gene_map[gene[gene_id].gene].min_mid) ||
+                            (expression[i].count <= filter_gene_map[gene[gene_id].gene].max_mid)) {
+                            exps.emplace_back(expression[i]);
+                        }
+                    }
+                    if (!exps.empty()) {
+                        m_bgefopts->map_gene_exp_.insert(
+                            unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
+                    }
+                } else {
+                    vector<Expression> exps;
+                    exps.reserve(gene[gene_id].count);
+                    unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+                    for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                        exps.emplace_back(expression[i]);
+                    }
+                    m_bgefopts->map_gene_exp_.insert(
+                        unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
+                }
+            }
+        }
+
+    } else {
+        // build filter map
+        std::unordered_map<std::string, MidCntFilter> filter_gene_map;
+        for (auto itor : filter_genes) {
+            filter_gene_map.insert(std::unordered_map<std::string, MidCntFilter>::value_type(itor.gene_name, itor));
+        }
+
+        // begin filter
+        BgefReader bgef_reader(BgefOptions::GetInstance()->input_file_, bin_size);
+        Gene *gene = bgef_reader.getGene();
+        Expression *expression = bgef_reader.getExpression();
+        m_bexon = bgef_reader.isExonExist();
+
+        // 这个filter_data可能很大，性能热点
+        for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
+            if (filter_gene_map.find(gene[gene_id].gene) != filter_gene_map.end()) {
+                std::set<uint64_t> tmp;
+                uint64_t idx;
+                unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+                for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                    if ((expression[i].count < filter_gene_map[gene[gene_id].gene].min_mid) ||
+                        (expression[i].count > filter_gene_map[gene[gene_id].gene].max_mid)) {
+                        idx = expression[i].x;
+                        tmp.emplace((idx << 32 | expression[i].y));
+                    }
+                }
+                if (!tmp.empty()) {
+                    filter_data.insert(std::map<std::string, std::set<uint64_t>>::value_type(gene[gene_id].gene, tmp));
+                }
+            }
+        }
+    }
+}
+
+void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes, bool only_filter) {
+    // get gene info at bin1 and binx
+    timer st(__FUNCTION__);
+
+    std::map<std::string, std::set<uint64_t>> filter_data;
+    FilterGeneInfo(bin_size, filter_genes, filter_data, only_filter);
+    log_info << "get filter info finish. ";
+
+    process_rate_ = 1;
+    m_bgefopts = BgefOptions::GetInstance();
+
+    // filter bin1 info
+    if (bin_size != 1) {
+        if (filter_data.empty()) {
+            log_info << "error filter gene is empty. ";
             process_rate_ = -1;
             return;
         }
-    }
 
-    // filter bin1 info
-    if (filter_data.empty()) {
-        log_info << "error filter gene is empty. ";
-        process_rate_ = -1;
-        return;
-    }
-    for (auto itor : filter_data) {
-        if (m_bgefopts->map_gene_exp_.find(itor.first) != m_bgefopts->map_gene_exp_.end()) {
-            auto itor_exp = m_bgefopts->map_gene_exp_[itor.first].begin();
-            for (; itor_exp != m_bgefopts->map_gene_exp_[itor.first].end();) {
-                uint64_t idx = ((*itor_exp).x / bin_size) * bin_size;
-                idx = idx << 32 | (((*itor_exp).y / bin_size) * bin_size);
-                if (itor.second.find(idx) != itor.second.end()) {
-                    itor_exp = m_bgefopts->map_gene_exp_[itor.first].erase(itor_exp);
-                    if (m_bgefopts->map_gene_exp_[itor.first].empty()) {
-                        m_bgefopts->map_gene_exp_.erase(itor.first);
-                        break;
+        if (only_filter) {
+            BgefReader bgef_reader(BgefOptions::GetInstance()->input_file_, 1);
+            m_bexon = bgef_reader.isExonExist();
+            log_info << "before filter size is : " << bgef_reader.getExpressionNum();
+            Gene *gene = bgef_reader.getGene();
+            Expression *expression = bgef_reader.getExpression();
+            for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
+                if (filter_data.find(gene[gene_id].gene) != filter_data.end()) {
+                    unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+                    vector<Expression> exps;
+                    for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                        uint64_t idx = (expression[i].x / bin_size) * bin_size;
+                        idx = idx << 32 | ((expression[i].y / bin_size) * bin_size);
+                        if (filter_data[gene[gene_id].gene].find(idx) != filter_data[gene[gene_id].gene].end()) {
+                            continue;
+                        }
+                        exps.emplace_back(expression[i]);
                     }
-                } else {
-                    itor_exp++;
+                    if (!exps.empty()) {
+                        m_bgefopts->map_gene_exp_.insert(
+                            unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
+                    }
                 }
             }
         } else {
-            log_info << "error filter gene process error. ";
-            process_rate_ = -1;
-            return;
+            BgefReader bgef_reader(BgefOptions::GetInstance()->input_file_, 1);
+            m_bexon = bgef_reader.isExonExist();
+            log_info << "before filter size is : " << bgef_reader.getExpressionNum();
+            Gene *gene = bgef_reader.getGene();
+            Expression *expression = bgef_reader.getExpression();
+            for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
+                if (filter_data.find(gene[gene_id].gene) != filter_data.end()) {
+                    unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+                    vector<Expression> exps;
+                    for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                        uint64_t idx = (expression[i].x / bin_size) * bin_size;
+                        idx = idx << 32 | ((expression[i].y / bin_size) * bin_size);
+                        if (filter_data[gene[gene_id].gene].find(idx) != filter_data[gene[gene_id].gene].end()) {
+                            continue;
+                        }
+                        exps.emplace_back(expression[i]);
+                    }
+                    if (!exps.empty()) {
+                        m_bgefopts->map_gene_exp_.insert(
+                            unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
+                    }
+                } else {
+                    vector<Expression> exps;
+                    exps.reserve(gene[gene_id].count);
+                    unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+                    for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                        exps.emplace_back(expression[i]);
+                    }
+                    m_bgefopts->map_gene_exp_.insert(
+                        unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
+                }
+            }
         }
     }
 
@@ -2149,7 +2258,7 @@ void cellAdjust::DoGenerate(const std::string &input_file, const std::string &ou
         return;
     }
 
-    hid_t file_id = H5Fopen(input_file.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    hid_t file_id = H5Fopen(BgefOptions::GetInstance()->input_file_.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     hid_t gid = H5Gopen(file_id, "/geneExp", H5P_DEFAULT);
     if (gid < 0) {
         log_info << "can not find input spatial bin gef file... ";
@@ -2188,17 +2297,21 @@ void cellAdjust::DoGenerate(const std::string &input_file, const std::string &ou
     log_info << util::Format("minx:{0} miny:{1} maxx:{2} maxy:{3}", m_min_x, m_min_y, m_max_x, m_max_y);
     H5Aclose(attr);
     H5Dclose(exp_did);
+    H5Fclose(file_id);
 
     m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
     ThreadPool thpool(m_bgefopts->thread_ * 2);
     m_bgefopts->m_stromics.append(m_szomics);
+    log_info << "thread count is : " << m_bgefopts->thread_;
 
-    BgefWriter bgef_writer(output_file, false, m_bexon, m_bgefopts->m_stromics);
+    BgefWriter bgef_writer(BgefOptions::GetInstance()->output_file_, false, m_bexon, m_bgefopts->m_stromics);
     bgef_writer.setResolution(m_resolution);
+    // bgef_writer.SetGefArea(gef_area);
 
     // do bin , write to bgef file
     int genecnt = 0;
     for (unsigned int bin : m_bgefopts->bin_sizes_) {
+        timer st("Do bin... ");
         auto &dnb_matrix = m_bgefopts->dnbmatrix_;
         auto &dnbAttr = m_bgefopts->dnbmatrix_.dnb_attr;
 
@@ -2274,7 +2387,9 @@ void cellAdjust::DoGenerate(const std::string &input_file, const std::string &ou
         map<string, vector<Expression>> gene_info;
         while (true) {
             GeneInfo *pgeneinfo = m_bgefopts->m_geneinfo_queue.getPtr();
-            gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
+            if (1 != bin) {
+                gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
+            }
 
             maxexp = std::max(maxexp, pgeneinfo->maxexp);
             maxexon = std::max(maxexon, pgeneinfo->maxexon);
@@ -2290,19 +2405,25 @@ void cellAdjust::DoGenerate(const std::string &input_file, const std::string &ou
             }
         }
 
-        for (auto itor : gene_info) {
-            if (bin == 1) {
+        if (bin == 1) {
+            for (auto itor : m_bgefopts->map_gene_exp_) {
                 m_bgefopts->expressions_.insert(m_bgefopts->expressions_.end(), itor.second.begin(), itor.second.end());
-            } else {
+                m_bgefopts->genes_.emplace_back(itor.first.c_str(), offset,
+                                                static_cast<unsigned int>(itor.second.size()));
+                offset += itor.second.size();
+            }
+        } else {
+            for (auto itor : gene_info) {
                 for (auto g : itor.second) {
                     g.x *= bin;
                     g.y *= bin;
                     m_bgefopts->expressions_.push_back(std::move(g));
                 }
-            }
 
-            m_bgefopts->genes_.emplace_back(itor.first.c_str(), offset, static_cast<unsigned int>(itor.second.size()));
-            offset += itor.second.size();
+                m_bgefopts->genes_.emplace_back(itor.first.c_str(), offset,
+                                                static_cast<unsigned int>(itor.second.size()));
+                offset += itor.second.size();
+            }
         }
 
         log_info << "after filter size is : " << m_bgefopts->expressions_.size();
@@ -2310,57 +2431,63 @@ void cellAdjust::DoGenerate(const std::string &input_file, const std::string &ou
         bgef_writer.storeGeneExon(m_bgefopts->expressions_, maxexon, bin);
         m_bgefopts->expressions_.clear();
         m_bgefopts->genes_.clear();
+        std::vector<Expression>().swap(m_bgefopts->expressions_);
+        std::vector<Gene>().swap(m_bgefopts->genes_);
 
         thpool.waitTaskDone();
         m_bgefopts->m_genes_queue.clear(bin);
 
         // write dnb
-        if (bin == 100) {
-            vector<GeneStat> &geneStat = m_bgefopts->m_vec_bin100;
-            std::sort(geneStat.begin(), geneStat.end(), [](const GeneStat &p1, const GeneStat &p2) {
-                if (p1.mid_count > p2.mid_count) {
-                    return true;
-                } else if (p1.mid_count == p2.mid_count) {
-                    int ret = strcmp(p1.gene, p2.gene);
-                    return ret < 0;
-                } else {
-                    return false;
+        {
+            timer st("write dnb... ");
+
+            if (bin == 100) {
+                vector<GeneStat> &geneStat = m_bgefopts->m_vec_bin100;
+                std::sort(geneStat.begin(), geneStat.end(), [](const GeneStat &p1, const GeneStat &p2) {
+                    if (p1.mid_count > p2.mid_count) {
+                        return true;
+                    } else if (p1.mid_count == p2.mid_count) {
+                        int ret = strcmp(p1.gene, p2.gene);
+                        return ret < 0;
+                    } else {
+                        return false;
+                    }
+                });
+                bgef_writer.storeStat(geneStat);
+            }
+
+            vector<unsigned int> vec_mid;
+            unsigned long number = 0;
+
+            if (bin == 1) {
+                for (unsigned long i = 0; i < matrix_len; i++) {
+                    if (dnb_matrix.pmatrix_us[i].gene_count) {
+                        ++number;
+                        vec_mid.push_back(dnb_matrix.pmatrix_us[i].mid_count);
+                    }
                 }
-            });
-            bgef_writer.storeStat(geneStat);
-        }
-
-        vector<unsigned int> vec_mid;
-        unsigned long number = 0;
-
-        if (bin == 1) {
-            for (unsigned long i = 0; i < matrix_len; i++) {
-                if (dnb_matrix.pmatrix_us[i].gene_count) {
-                    ++number;
-                    vec_mid.push_back(dnb_matrix.pmatrix_us[i].mid_count);
+            } else {
+                for (unsigned long i = 0; i < matrix_len; i++) {
+                    if (dnb_matrix.pmatrix[i].gene_count) {
+                        ++number;
+                        vec_mid.push_back(dnb_matrix.pmatrix[i].mid_count);
+                    }
                 }
             }
-        } else {
-            for (unsigned long i = 0; i < matrix_len; i++) {
-                if (dnb_matrix.pmatrix[i].gene_count) {
-                    ++number;
-                    vec_mid.push_back(dnb_matrix.pmatrix[i].mid_count);
-                }
+
+            int sz = vec_mid.size();
+            sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
+            if (bin > 50) {
+                dnbAttr.max_mid = vec_mid[sz - 1];
+            } else {
+                int limit = sz * 0.999;
+                dnbAttr.max_mid = vec_mid[limit];
             }
-        }
 
-        int sz = vec_mid.size();
-        sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
-        if (bin > 50) {
-            dnbAttr.max_mid = vec_mid[sz - 1];
-        } else {
-            int limit = sz * 0.999;
-            dnbAttr.max_mid = vec_mid[limit];
+            dnbAttr.number = number;
+            bgef_writer.storeDnb(dnb_matrix, bin);
+            bgef_writer.storeWholeExon(dnb_matrix, bin);
         }
-
-        dnbAttr.number = number;
-        bgef_writer.storeDnb(dnb_matrix, bin);
-        bgef_writer.storeWholeExon(dnb_matrix, bin);
 
         if (bin == 1) {
             if (dnb_matrix.pmatrix_us != nullptr) {
