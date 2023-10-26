@@ -31,6 +31,7 @@ cellAdjust::~cellAdjust() {
         H5Fclose(m_bgeffile_id);
     }
     if (generate_bgef_thread_.joinable()) generate_bgef_thread_.join();
+    if (lasso_bgef_thread_.joinable()) lasso_bgef_thread_.join();
 }
 
 void cellAdjust::readBgef(const string &strinput) {
@@ -2056,11 +2057,14 @@ int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string input_file, c
     // do generate
     process_rate_ = 0;
     log_info << filter_genes.size();
+    BgefOptions::GetInstance()->clear();
     BgefOptions::GetInstance()->input_file_ = input_file;
     BgefOptions::GetInstance()->output_file_ = output_file;
-
-    // generate_bgef_thread_ = std::thread(&cellAdjust::DoGenerate, this, bin_size, filter_genes, only_filter);
+#ifdef _WIN32
+    generate_bgef_thread_ = std::thread(&cellAdjust::DoGenerate, this, bin_size, filter_genes, only_filter);
+#else
     DoGenerate(bin_size, filter_genes, only_filter);
+#endif
     return 0;
 }
 
@@ -2087,11 +2091,10 @@ void cellAdjust::FilterGeneInfo(int bin_size, std::vector<MidCntFilter> filter_g
         m_bgefopts->map_gene_exp_.clear();
 
         BgefReader bgef_reader(BgefOptions::GetInstance()->input_file_, 1);
-        m_bexon = bgef_reader.isExonExist();
         log_info << "before filter size is : " << bgef_reader.getExpressionNum();
-
         Gene *gene = bgef_reader.getGene();
         Expression *expression = bgef_reader.getExpression();
+        m_bexon = bgef_reader.isExonExist();
 
         if (only_filter) {
             for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
@@ -2099,7 +2102,7 @@ void cellAdjust::FilterGeneInfo(int bin_size, std::vector<MidCntFilter> filter_g
                     unsigned int end = gene[gene_id].offset + gene[gene_id].count;
                     vector<Expression> exps;
                     for (unsigned int i = gene[gene_id].offset; i < end; i++) {
-                        if ((expression[i].count >= filter_gene_map[gene[gene_id].gene].min_mid) ||
+                        if ((expression[i].count >= filter_gene_map[gene[gene_id].gene].min_mid) &&
                             (expression[i].count <= filter_gene_map[gene[gene_id].gene].max_mid)) {
                             exps.emplace_back(expression[i]);
                         }
@@ -2116,7 +2119,7 @@ void cellAdjust::FilterGeneInfo(int bin_size, std::vector<MidCntFilter> filter_g
                     unsigned int end = gene[gene_id].offset + gene[gene_id].count;
                     vector<Expression> exps;
                     for (unsigned int i = gene[gene_id].offset; i < end; i++) {
-                        if ((expression[i].count >= filter_gene_map[gene[gene_id].gene].min_mid) ||
+                        if ((expression[i].count >= filter_gene_map[gene[gene_id].gene].min_mid) &&
                             (expression[i].count <= filter_gene_map[gene[gene_id].gene].max_mid)) {
                             exps.emplace_back(expression[i]);
                         }
@@ -2193,10 +2196,11 @@ void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes
 
         if (only_filter) {
             BgefReader bgef_reader(BgefOptions::GetInstance()->input_file_, 1);
-            m_bexon = bgef_reader.isExonExist();
             log_info << "before filter size is : " << bgef_reader.getExpressionNum();
             Gene *gene = bgef_reader.getGene();
             Expression *expression = bgef_reader.getExpression();
+            m_bexon = bgef_reader.isExonExist();
+
             for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
                 if (filter_data.find(gene[gene_id].gene) != filter_data.end()) {
                     unsigned int end = gene[gene_id].offset + gene[gene_id].count;
@@ -2217,10 +2221,11 @@ void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes
             }
         } else {
             BgefReader bgef_reader(BgefOptions::GetInstance()->input_file_, 1);
-            m_bexon = bgef_reader.isExonExist();
             log_info << "before filter size is : " << bgef_reader.getExpressionNum();
             Gene *gene = bgef_reader.getGene();
             Expression *expression = bgef_reader.getExpression();
+            m_bexon = bgef_reader.isExonExist();
+
             for (unsigned int gene_id = 0; gene_id < bgef_reader.getGeneNum(); gene_id++) {
                 if (filter_data.find(gene[gene_id].gene) != filter_data.end()) {
                     unsigned int end = gene[gene_id].offset + gene[gene_id].count;
@@ -2510,5 +2515,37 @@ void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes
         }
     }
     process_rate_ = 3;
+    BgefOptions::GetInstance()->clear();
     return;
+}
+
+int cellAdjust::GenerateBgefByLasso(const string strinput, const string stroutput, vector<vector<int>> vecpos) {
+#ifdef _WIN32
+
+    lasso_bgef_rate_ = 0;
+    BgefOptions::GetInstance()->clear();
+    lasso_bgef_thread_ = std::thread(&cellAdjust::DoLassoGenerate, this, strinput, stroutput, vecpos);
+#else
+    DoLassoGenerate(strinput, stroutput, vecpos);
+#endif
+    return 0;
+}
+
+void cellAdjust::DoLassoGenerate(const string strinput, const string stroutput, vector<vector<int>> vecpos) {
+    readBgef(strinput);
+    lasso_bgef_rate_ = 1;
+    getRegionGenedata(vecpos);
+    lasso_bgef_rate_ = 2;
+    createRegionGef(stroutput);
+    lasso_bgef_rate_ = 3;
+    BgefOptions::GetInstance()->clear();
+}
+
+int cellAdjust::GenerateLassoBgefDuration() {
+    // get rate of progress
+    if ((lasso_bgef_rate_ == -1) || (lasso_bgef_rate_ == 3)) {
+        if (lasso_bgef_thread_.joinable()) lasso_bgef_thread_.join();
+        return lasso_bgef_rate_;
+    }
+    return lasso_bgef_rate_;
 }

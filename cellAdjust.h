@@ -48,6 +48,7 @@ class GEFTOOLS_API cellAdjust {
 
     void readBgef(const string &strinput);
     void readCgef(const string &strinput);
+
     uint32_t getCellLabelgem(vector<string> &genename, vector<cellgem_label> &vecCellgem);
     void writeCellAdjust(const string &outpath, const string &outline_path, Cell *cellptr, int cellcnt,
                          DnbExpression *dnbptr, int dnbcnt);
@@ -56,9 +57,11 @@ class GEFTOOLS_API cellAdjust {
     bool AddBorderFromFile(unsigned int cid, vector<cv::Point> &border, vector<short> &vecBorder);
     void writeCell(Cell *cellptr, unsigned int cellcnt, DnbExpression *dnbptr, unsigned int dnbcnt);
     void writeGene();
+    
     void cgeftogem(const string &strbgef, const string &strcgef, const string &strout);
     void cgeftogem_exon(const string &strbgef, const string &strcgef, const string &strout);
     bool bexon() { return m_bexon; }
+
     void createRegionGef(const string &strout);
     void getRegionGenedata(vector<vector<int>> &m_vecpos);
 
@@ -85,11 +88,15 @@ class GEFTOOLS_API cellAdjust {
     int GenerateFilterBgefFileByMidCount(const std::string input_file, const std::string output_file, int bin_size,
                                          std::vector<MidCntFilter> filter_genes, bool only_filter);
     int GenerateFilterBgefDuration();
-    
+
     void DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes, bool only_filter);
 
     void FilterGeneInfo(int bin_size, std::vector<MidCntFilter> filter_genes,
                         std::map<std::string, std::set<uint64_t>> &filter_data, bool only_filter);
+
+    int GenerateBgefByLasso(const string strinput, const string stroutput, vector<vector<int>> vecpos);
+    void DoLassoGenerate(const string strinput, const string stroutput, vector<vector<int>> vecpos);
+    int GenerateLassoBgefDuration();
 
   private:
     bool m_bexon = false;
@@ -139,6 +146,9 @@ class GEFTOOLS_API cellAdjust {
 
     std::thread generate_bgef_thread_;
     int process_rate_ = 0;
+
+    std::thread lasso_bgef_thread_;
+    int lasso_bgef_rate_ = 0;
 };
 
 #endif

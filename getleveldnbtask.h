@@ -91,7 +91,7 @@ class getleveldnbtask : public ITask {
                         y = ((i + start_) % cols_ + offset_y_) * bin_;
                         bool ret = blevel_ ? leveltop(x, y) : true;
                         if (ret) {
-                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdataus_[i].gene_count, pdataus_[i].mid_count,
+                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdataus_[i].mid_count, pdataus_[i].gene_count,
                                                   pdataus_[i].mid_count * 1.0 / maxmid_);
                             index = x;
                             index *= datacols_;
@@ -108,7 +108,7 @@ class getleveldnbtask : public ITask {
                         y = ((i + start_) % cols_ + offset_y_) * bin_;
                         bool ret = blevel_ ? levelnormal(x, y) : true;
                         if (ret) {
-                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdataus_[i].gene_count, pdataus_[i].mid_count,
+                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdataus_[i].mid_count, pdataus_[i].gene_count,
                                                   pdataus_[i].mid_count * 1.0 / maxmid_);
                             index = x;
                             index *= datacols_;
@@ -128,7 +128,7 @@ class getleveldnbtask : public ITask {
                         y = (i + start_) % cols_ + offset_y_;
                         bool ret = blevel_ ? leveltop(x, y) : true;
                         if (ret) {
-                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdata_[i].gene_count, pdata_[i].mid_count,
+                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdata_[i].mid_count, pdata_[i].gene_count,
                                                   pdata_[i].mid_count * 1.0 / maxmid_);
                             index = x;
                             index *= datacols_;
@@ -145,7 +145,7 @@ class getleveldnbtask : public ITask {
                         y = (i + start_) % cols_ + offset_y_;
                         bool ret = blevel_ ? levelnormal(x, y) : true;
                         if (ret) {
-                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdata_[i].gene_count, pdata_[i].mid_count,
+                            m_vecdnb.emplace_back(x * bin_, y * bin_, pdata_[i].mid_count, pdata_[i].gene_count,
                                                   pdata_[i].mid_count * 1.0 / maxmid_);
                             index = x;
                             index *= datacols_;

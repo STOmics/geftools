@@ -1,5 +1,7 @@
 #include "bin_task.h"
 
+// std::mutex BinTask::bin_mutex_;
+
 BinTask::BinTask(int bin, const char *ptr) : m_bin(bin), m_geneid(ptr), m_maxexp(0) {
     opts_ = BgefOptions::GetInstance();
 }
@@ -11,6 +13,22 @@ void BinTask::bin1task() {
 
     GeneS *pgenes = new GeneS(m_geneid);
     auto *pgeneinfo = new GeneInfo(m_geneid);
+    // sort by cord
+    // {
+    //     lock_guard<mutex> lock(bin_mutex_);
+    //     std::sort(exp_vec.begin(), exp_vec.end(), [](const Expression &a, const Expression &b) {
+    //         if (a.x < b.x) {
+    //             return true;
+    //         } else if (a.x == b.x) {
+    //             if (a.y < b.y) {
+    //                 return true;
+    //             }
+    //         } else {
+    //             return false;
+    //         }
+    //     });
+    // }
+
     pgeneinfo->vecptr = &exp_vec;
 
     for (auto &exp : exp_vec) {
@@ -44,6 +62,8 @@ void BinTask::bin100task() {
     auto *pgeneinfo = new GeneInfo(m_geneid);
     pgeneinfo->vecptr = new std::vector<Expression>;
     pgeneinfo->vecptr->reserve(map_dnb.size());
+    std::vector<Expression> tmp_vec;
+    tmp_vec.reserve(map_dnb.size());
 
     pgeneinfo->umicnt = umicnt;
     auto itor_dnb = map_dnb.begin();
@@ -63,14 +83,16 @@ void BinTask::bin100task() {
     pgeneinfo->maxexp = m_maxexp;
     pgeneinfo->maxexon = m_maxexon;
 
-    std::sort(pgeneinfo->vecptr->begin(), pgeneinfo->vecptr->end(),
+    tmp_vec.assign(pgeneinfo->vecptr->begin(), pgeneinfo->vecptr->end());
+
+    std::sort(tmp_vec.begin(), tmp_vec.end(),
               [](const Expression &a, const Expression &b) { return a.count > b.count; });
 
     int j = 0;
-    int sz = pgeneinfo->vecptr->size() * 0.1;
+    int sz = tmp_vec.size() * 0.1;
     unsigned long midcnt = 0;
-    auto itor = pgeneinfo->vecptr->begin();
-    for (; itor != pgeneinfo->vecptr->end() && j < sz; itor++, j++) {
+    auto itor = tmp_vec.begin();
+    for (; itor != tmp_vec.end() && j < sz; itor++, j++) {
         midcnt += itor->count;
     }
     pgeneinfo->e10 = (midcnt * 1.0 / umicnt) * 100;

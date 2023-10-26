@@ -28,6 +28,15 @@ class GEFTOOLS_API BgefOptions {
         return &instance;
     }
 
+    void clear() {
+        map_gene_exp_.clear();
+        std::unordered_map<std::string, std::vector<Expression>>().swap(map_gene_exp_);
+        m_vec_bin100.clear();
+        std::vector<GeneStat>().swap(m_vec_bin100);
+
+        m_stromics = "";
+    }
+
     int thread_ = 8;  // 设置取bin线程数
     //    int m_thread_dnb = 8; //设置dnbmerge线程数
     bool reverse_ = false;  // true: gef to gem, false: gem to gef

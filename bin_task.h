@@ -32,6 +32,7 @@ class GEFTOOLS_API BinTask : public ITask {
     unsigned long long x, y, dnb;
     unsigned int m_maxexp = 0;
     unsigned int m_maxexon = 0;
+    // static std::mutex bin_mutex_;
 };
 
 #endif
