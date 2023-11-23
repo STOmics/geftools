@@ -44,7 +44,7 @@ BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool 
     file_id_ = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     if (file_id_ < 0) {
         log_error << errorCode::E_FILEOPENERROR << "open bgef file error. ";
-        exit(1);
+        return;
     }
     bin_size_ = bin_size;
     verbose_ = verbose;
@@ -94,6 +94,7 @@ BgefReader::~BgefReader() {
     if (cell_indices_ != nullptr) free(cell_indices_);
     if (expressions_ != nullptr) free(expressions_);
     if (reduce_expressions_ != nullptr) free(reduce_expressions_);
+    if (m_exonPtr != nullptr) free(m_exonPtr);
 
     H5Dclose(exp_dataset_id_);
     H5Sclose(exp_dataspace_id_);
@@ -1585,8 +1586,8 @@ uint32_t BgefReader::getleveldnb(bool bfilter, bool btop, uint32_t level, uint32
     st.showgap("read time");
 
     level_fractal lf;
-    lf.fractal_size = pow(3, level);       // 基础分形大小
-    lf.fractal_num = 3 * lf.fractal_size;  // 每个基础分形中点的数目
+    lf.fractal_size = pow(3, level);                                    // 基础分形大小
+    lf.fractal_num = 3 * lf.fractal_size;                               // 每个基础分形中点的数目
     lf.mid_fractal_coor = lf.fractal_size + (lf.fractal_size - 1) / 2;  // 每层基础分形中心点的坐标
     lf.start_fractal_coor = lf.mid_fractal_coor - lf.fractal_size;
     lf.end_fractal_coor = lf.mid_fractal_coor + lf.fractal_size;
@@ -1629,4 +1630,148 @@ uint32_t BgefReader::getleveldnb(bool bfilter, bool btop, uint32_t level, uint32
     }
     st.showgap("get dnb time");
     return dbuf.cnt;
+}
+
+void BgefReader::GetGenesLevelDnb(bool bfilter, bool btop, uint32_t level, uint32_t start_x, uint32_t start_y,
+                                  uint32_t end_x, uint32_t end_y,
+                                  vector<unsigned long long> &vecindex,
+                                  vector<string> genelist) {
+    timer st("getgeneleveldnb");
+
+    // vector<levelgenednb> m_vecdnb;                                          
+    uint32_t max_mid = 0;
+    std::map<unsigned long long, unsigned int> map_dnb;   
+    m_vecdnb.clear();
+    vector<levelgenednb>().swap(m_vecdnb);
+
+    // 1、get dnb by gene name
+    Gene *gene = getGene();
+    Expression *expression = getExpression();
+
+    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+        string gene_name(gene[gene_id].gene);
+        auto exist_gene = std::find(genelist.begin(), genelist.end(), gene_name);
+        if (exist_gene != genelist.end()) {
+            log_info << "find ...";
+            unsigned int end = gene[gene_id].offset + gene[gene_id].count;
+            for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                Expression exp = expression[i];
+                if (exp.x < start_x || exp.x >= end_x || exp.y < start_y || exp.y >= end_y) {
+                    continue;
+                }
+                unsigned long long dnb = exp.x;
+                dnb = dnb << 32 | exp.y;
+                map_dnb[dnb] += exp.count;
+
+                if (exp.count > max_mid) max_mid = exp.count;
+            }
+        }
+    }
+
+    // 2、prepare fractal
+    level_fractal lf;
+    lf.fractal_size = pow(3, level);
+    lf.fractal_num = 3 * lf.fractal_size;
+    lf.mid_fractal_coor = lf.fractal_size + (lf.fractal_size - 1) / 2;
+    lf.start_fractal_coor = lf.mid_fractal_coor - lf.fractal_size;
+    lf.end_fractal_coor = lf.mid_fractal_coor + lf.fractal_size;
+
+    // dnbbuf dbuf;
+    // dbuf.sz = 0;
+    // dbuf.cnt = 0;
+    // dbuf.pbuf = pdnbbuf;
+
+    auto leveltop = [&lf](uint32_t x, uint32_t y) {
+        uint32_t mx = x % lf.fractal_num;
+        bool xret = mx == lf.start_fractal_coor | mx == lf.mid_fractal_coor | mx == lf.end_fractal_coor;
+        if (xret) {
+            uint32_t my = y % lf.fractal_num;
+            bool yret = my == lf.start_fractal_coor | my == lf.mid_fractal_coor | my == lf.end_fractal_coor;
+            if (yret) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto levelnormal = [&lf](uint32_t x, uint32_t y) {
+        uint32_t mx = x % lf.fractal_num;
+        bool xret = mx == lf.start_fractal_coor | mx == lf.mid_fractal_coor | mx == lf.end_fractal_coor;
+        if (xret) {
+            uint32_t my = y % lf.fractal_num;
+            bool yret = my == lf.start_fractal_coor | my == lf.mid_fractal_coor | my == lf.end_fractal_coor;
+            if (yret) {
+                if (!((mx == lf.mid_fractal_coor) && (my == lf.mid_fractal_coor)))  // 去掉中心点
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // 3、begin process
+    uint32_t x, y;
+    uint64_t index = 0;
+    ExpressionAttr &expression_attr = getExpressionAttr();
+
+    if (btop) {
+        for (auto itor : map_dnb) {
+            x = itor.first >> 32;
+            y = itor.first & 0xFFFFFFFF;
+            bool ret = bfilter ? leveltop(x, y) : true;
+            if (ret) {
+                m_vecdnb.emplace_back(x, y, itor.second, itor.second * 1.0 / max_mid);
+                index = x;
+                index *= expression_attr.max_x;
+                index += y;
+                vecindex.push_back(index);
+            }
+        }
+    } else {
+        for (auto itor : map_dnb) {
+            x = itor.first >> 32;
+            y = itor.first & 0xFFFFFFFF;
+            bool ret = bfilter ? levelnormal(x, y) : true;
+            if (ret) {
+                m_vecdnb.emplace_back(x, y, itor.second, itor.second * 1.0 / max_mid);
+                index = x;
+                index *= expression_attr.max_x;
+                index += y;
+                vecindex.push_back(index);
+            }
+        }
+    }
+
+    //     uint32_t sz = m_vecdnb.size() * sizeof(levelgenednb);
+    // #ifdef _WIN32
+    //     memcpy((char *)dbuf.pbuf + dbuf.sz, m_vecdnb.data(), sz);
+    // #else
+    //     memcpy(dbuf.pbuf + dbuf.sz, m_vecdnb.data(), sz);
+    // #endif
+    //     dbuf.sz += sz;
+    //     dbuf.cnt += m_vecdnb.size();
+    //     printf("%d\n", dbuf.cnt);
+
+    // return dbuf.cnt;
+}
+
+uint32_t BgefReader::getGeneDnbNum() {
+    if (!m_vecdnb.empty()) {
+        return m_vecdnb.size();
+    } else {
+        return 0;
+    }
+}
+
+levelgenednb* BgefReader::getGeneDnbData() {
+    if (!m_vecdnb.empty()) {
+        levelgenednb *pbuf = new levelgenednb[m_vecdnb.size()];
+        memcpy(pbuf, &m_vecdnb[0], m_vecdnb.size() * sizeof(levelgenednb));
+        m_vecdnb.clear();
+        vector<levelgenednb>().swap(m_vecdnb);
+        return pbuf;
+    } else {
+        return nullptr;
+    }
 }

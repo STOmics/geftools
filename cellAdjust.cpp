@@ -824,12 +824,8 @@ void cellAdjust::createRegionGef(const string &out) {
 
         int sz = vec_mid.size();
         sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
-        if (bin > 50) {
-            dnbAttr.max_mid = vec_mid[sz - 1];
-        } else {
-            int limit = sz * 0.999;
-            dnbAttr.max_mid = vec_mid[limit];
-        }
+        int limit = sz * 0.999;
+        dnbAttr.max_mid = vec_mid[limit];
 
         dnbAttr.number = number;
         bgef_writer.storeDnb(dnb_matrix, bin);
@@ -985,6 +981,11 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     uint32_t cellexpcnt = 0;
     // cell
     hid_t cell_did = H5Dopen(file_id, "/cellBin/cell", H5P_DEFAULT);
+    if (cell_did < 0) {
+        log_info << "open /cellBin/cell dataset failed. ";
+        return;
+    }
+
     hsize_t dims[1];
     hid_t cell_sid = H5Dget_space(cell_did);
     H5Sget_simple_extent_dims(cell_sid, dims, nullptr);
@@ -1433,7 +1434,7 @@ void cellAdjust::getSapRegion(const string &strinput, int bin, int thcnt, vector
     hid_t gene_did = H5Dopen(m_bgeffile_id, dataName, H5P_DEFAULT);
     if (gene_did < 0) {
         log_error << errorCode::E_MISSINGFILEINFO << "can't find " << dataName;
-        exit(-1);
+        return;
     }
     hid_t gene_sid = H5Dget_space(gene_did);
     H5Sget_simple_extent_dims(gene_sid, dims, nullptr);
@@ -1514,7 +1515,7 @@ void cellAdjust::getSapRegionIndex(const string &strinput, int bin, int thcnt, v
     hid_t gene_did = H5Dopen(m_bgeffile_id, dataName, H5P_DEFAULT);
     if (gene_did < 0) {
         log_error << errorCode::E_MISSINGFILEINFO << "can't find " << dataName;
-        exit(-1);
+        return;
     }
     hid_t gene_sid = H5Dget_space(gene_did);
     H5Sget_simple_extent_dims(gene_sid, dims, nullptr);
@@ -1844,7 +1845,7 @@ void cellAdjust::getMultiLabelInfoFromBgef(const string &strinput, vector<vector
 }
 
 void cellAdjust::getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<int>> &vecpos,
-                                           vector<LabelCellData> &vecdata, vector<LabelCellData> &total_data) {
+                                           vector<LabelCellData> &vecdata, vector<LabelCellDataSum> &total_data) {
     timer st(__FUNCTION__);
 
     // read cgef file
@@ -1929,7 +1930,7 @@ void cellAdjust::getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<
     }
 
     float pixel_ratio = std::pow((float)m_resolution / (float)1000, 2);
-    std::map<uint16_t, LabelCellData> total_cell_data;
+    std::map<uint16_t, LabelCellDataSum> total_cell_data;
 
     for (uint32_t cid : vec_cid) {
         unsigned short cls_id = m_cell_arrayptr[cid].cluster_id;
@@ -1940,15 +1941,15 @@ void cellAdjust::getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<
             total_cell_data[cls_id].area += m_cell_arrayptr[cid].area;
             total_cell_data[cls_id].mid_cnt += m_cell_arrayptr[cid].exp_count;
         } else {
-            LabelCellData tmp = {m_cell_arrayptr[cid].cluster_id, m_cell_arrayptr[cid].exp_count,
-                                 (float)m_cell_arrayptr[cid].area, 1};
+            LabelCellDataSum tmp = {m_cell_arrayptr[cid].cluster_id, m_cell_arrayptr[cid].exp_count,
+                                    (float)m_cell_arrayptr[cid].area, 1};
 
-            total_cell_data.insert(std::pair<uint16_t, LabelCellData>(cls_id, tmp));
+            total_cell_data.insert(std::pair<uint16_t, LabelCellDataSum>(cls_id, tmp));
         }
 
         float cell_area = (float)m_cell_arrayptr[cid].area * pixel_ratio;
         vecdata.emplace_back(m_cell_arrayptr[cid].cluster_id, m_cell_arrayptr[cid].exp_count, cell_area,
-                             m_cell_arrayptr[cid].id);
+                             m_cell_arrayptr[cid].id, m_cell_arrayptr[cid].x, m_cell_arrayptr[cid].y);
     }
     for (auto itor : total_cell_data) {
         total_data.emplace_back(itor.second.cluster_id, itor.second.mid_cnt, ((float)itor.second.area * pixel_ratio),
@@ -2482,12 +2483,8 @@ void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes
 
             int sz = vec_mid.size();
             sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
-            if (bin > 50) {
-                dnbAttr.max_mid = vec_mid[sz - 1];
-            } else {
-                int limit = sz * 0.999;
-                dnbAttr.max_mid = vec_mid[limit];
-            }
+            int limit = sz * 0.999;
+            dnbAttr.max_mid = vec_mid[limit];
 
             dnbAttr.number = number;
             bgef_writer.storeDnb(dnb_matrix, bin);
@@ -2548,4 +2545,149 @@ int cellAdjust::GenerateLassoBgefDuration() {
         return lasso_bgef_rate_;
     }
     return lasso_bgef_rate_;
+}
+
+int cellAdjust::createRegionBgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos,
+                                       int bin_size) {
+    m_bgefopts = BgefOptions::GetInstance();
+    int num = m_vecpos.size();
+    uint64_t l_id = 0;
+    std::unordered_set<uint64_t> region_exp;
+
+    for (uint32_t i = 0; i < num; i++) {
+        l_id = m_vecpos[i][0];
+        l_id = l_id << 32 | m_vecpos[i][1];
+        region_exp.insert(l_id);
+    }
+
+    {
+        m_bgeffile_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+        if (m_bgeffile_id < 0) {
+            log_info << "open bgef file failed. ";
+            return -1;
+        } 
+        hsize_t dims[1];
+        hid_t gene_did = H5Dopen(m_bgeffile_id, "/geneExp/bin1/gene", H5P_DEFAULT);
+        if (gene_did < 0) {
+            log_info << "open /geneExp/bin1/gene dataset failed. ";
+            return -1;
+        }
+        hid_t gene_sid = H5Dget_space(gene_did);
+        H5Sget_simple_extent_dims(gene_sid, dims, nullptr);
+
+        m_genencnt = dims[0];
+        Gene *genePtr = (Gene *)malloc(dims[0] * sizeof(Gene));
+        hid_t genememtype, strtype;
+        strtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(strtype, 64);
+
+        genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+        H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, genePtr);
+        H5Tclose(genememtype);
+        H5Sclose(gene_sid);
+        H5Dclose(gene_did);
+
+        hid_t exp_did = H5Dopen(m_bgeffile_id, "/geneExp/bin1/expression", H5P_DEFAULT);
+        hid_t exp_sid = H5Dget_space(exp_did);
+        H5Sget_simple_extent_dims(exp_sid, dims, nullptr);
+
+        m_geneexpcnt = dims[0];
+
+        hid_t memtype;
+        memtype = H5Tcreate(H5T_COMPOUND, sizeof(Expression));
+        H5Tinsert(memtype, "x", HOFFSET(Expression, x), H5T_NATIVE_UINT);
+        H5Tinsert(memtype, "y", HOFFSET(Expression, y), H5T_NATIVE_UINT);
+        H5Tinsert(memtype, "count", HOFFSET(Expression, count), H5T_NATIVE_UINT);
+
+        Expression *expPtr = (Expression *)calloc(dims[0], sizeof(Expression));
+        H5Dread(exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, expPtr);
+
+        if (H5Lexists(m_bgeffile_id, "/geneExp/bin1/exon", H5P_DEFAULT) > 0) {
+            m_bexon = true;
+            hsize_t edims[1];
+            hid_t did = H5Dopen(m_bgeffile_id, "/geneExp/bin1/exon", H5P_DEFAULT);
+            hid_t sid = H5Dget_space(did);
+            H5Sget_simple_extent_dims(sid, edims, nullptr);
+            assert(edims[0] == m_geneexpcnt);
+            unsigned int *exonPtr = new unsigned int[edims[0]];
+            H5Dread(did, H5T_NATIVE_UINT, H5S_ALL, H5S_ALL, H5P_DEFAULT, exonPtr);
+            H5Sclose(sid);
+            H5Dclose(did);
+            for (uint64_t i = 0; i < m_geneexpcnt; i++) {
+                expPtr[i].exon = exonPtr[i];
+            }
+            delete[] exonPtr;
+        }
+
+        hid_t attr = H5Aopen(exp_did, "minX", H5P_DEFAULT);
+        H5Aread(attr, H5T_NATIVE_UINT, &m_min_x);
+        attr = H5Aopen(exp_did, "minY", H5P_DEFAULT);
+        H5Aread(attr, H5T_NATIVE_UINT, &m_min_y);
+        attr = H5Aopen(exp_did, "maxX", H5P_DEFAULT);
+        H5Aread(attr, H5T_NATIVE_UINT, &m_max_x);
+        attr = H5Aopen(exp_did, "maxY", H5P_DEFAULT);
+        H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
+        attr = H5Aopen(exp_did, "resolution", H5P_DEFAULT);
+        H5Aread(attr, H5T_NATIVE_UINT, &m_resolution);
+        printf("minx:%d miny:%d maxx:%d maxy:%d\n", m_min_x, m_min_y, m_max_x, m_max_y);
+        H5Aclose(attr);
+        H5Tclose(memtype);
+        H5Sclose(exp_sid);
+        H5Dclose(exp_did);
+        H5Tclose(strtype);
+
+        m_maxx = m_max_x;
+        m_maxy = m_max_y;
+
+        if (H5Aexists(m_bgeffile_id, "omics") > 0) {
+            hid_t omics_strtype = H5Tcopy(H5T_C_S1);
+            H5Tset_size(omics_strtype, 32);
+            hid_t fattr = H5Aopen(m_bgeffile_id, "omics", H5P_DEFAULT);
+            H5Aread(fattr, omics_strtype, m_szomics);
+            H5Tclose(omics_strtype);
+        } else {
+            strcpy(m_szomics, "Transcriptomics");
+        }
+
+        m_bgefopts->map_gene_exp_.clear();
+        uint64_t l_id = 0;
+        for (int i = 0; i < m_genencnt; i++) {
+            Expression *ptr = expPtr + genePtr[i].offset;
+            for (int j = 0; j < genePtr[i].count; j++) {
+                l_id = (ptr[j].x / bin_size) * bin_size;
+                l_id = (l_id << 32) | (ptr[j].y / bin_size) * bin_size;
+
+                if (region_exp.find(l_id) != region_exp.end()) {
+                    vector<Expression> exps;
+                    exps.emplace_back(ptr[j]);
+                    m_bgefopts->map_gene_exp_.insert(
+                        unordered_map<string, vector<Expression>>::value_type(genePtr[i].gene, exps));
+                }
+            }
+        }
+        free(genePtr);
+        free(expPtr);
+    }
+
+    createRegionGef(strout);
+    return 0;
+}
+
+int cellAdjust::createRegionCgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos) {
+    int num = m_vecpos.size();
+    uint64_t l_id = 0;
+    // std::unordered_set<uint64_t> region_exp;
+    m_setcell.clear();
+    for (uint32_t i = 0; i < num; i++) {
+        l_id = m_vecpos[i][0];
+        l_id = l_id << 32 | m_vecpos[i][1];
+        m_setcell.insert(l_id);
+    }
+
+    readRawCgef(strinput);
+    writeToCgef(strout);
+    return 0;
 }

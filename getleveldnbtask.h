@@ -14,6 +14,8 @@ struct leveldnb {
     float color;
 };
 
+
+
 struct level_fractal {
     uint32_t fractal_size;
     uint32_t fractal_num;

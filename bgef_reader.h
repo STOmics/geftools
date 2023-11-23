@@ -54,6 +54,7 @@ class GEFTOOLS_API BgefReader {
     void buildCellInfo();
     void buildCellInfo2();
     bool m_bexon = false;
+    vector<levelgenednb> m_vecdnb;
 
   public:
     float gef_area_;
@@ -216,6 +217,12 @@ class GEFTOOLS_API BgefReader {
     void openExonSpace(int bin_size);
     uint32_t getleveldnb(bool bfilter, bool btop, uint32_t level, uint32_t offset_x, uint32_t offset_y, uint32_t rows,
                          uint32_t cols, void *pdnbbuf, vector<unsigned long long> &vecindex);
+
+    void GetGenesLevelDnb(bool bfilter, bool btop, uint32_t level, uint32_t start_x, uint32_t start_y, uint32_t end_x,
+                          uint32_t end_y, vector<unsigned long long> &vecindex,
+                          vector<string> genelist);
+    uint32_t getGeneDnbNum();
+    levelgenednb *getGeneDnbData();
 };
 
 #endif  // GEFTOOLS__COMMON_BIN_H_

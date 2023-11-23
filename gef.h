@@ -293,13 +293,24 @@ struct GEFTOOLS_API LabelGeneData {
     unsigned int mid_cnt;
 };
 
-struct GEFTOOLS_API LabelCellData {
-    LabelCellData() = default;
-    LabelCellData(uint16_t a, uint16_t b, float c, uint32_t d) : cluster_id(a), mid_cnt(b), area(c), cell_id(d) {}
+struct GEFTOOLS_API LabelCellDataSum {
+    LabelCellDataSum() = default;
+    LabelCellDataSum(uint16_t a, uint16_t b, float c, uint32_t d) : cluster_id(a), mid_cnt(b), area(c), cell_id(d) {}
     uint16_t cluster_id {0};
     uint16_t mid_cnt {0};
     float area {0.0};
     uint32_t cell_id {0};
+};
+
+struct GEFTOOLS_API LabelCellData {
+    LabelCellData() = default;
+    LabelCellData(uint16_t a, uint16_t b, float c, uint32_t d, int e, int f) : cluster_id(a), mid_cnt(b), area(c), cell_id(d), x(e), y(f) {}
+    uint16_t cluster_id {0};
+    uint16_t mid_cnt {0};
+    float area {0.0};
+    uint32_t cell_id {0};
+    int x {0};
+    int y {0};
 };
 
 struct GEFTOOLS_API sapCgefData {
@@ -325,6 +336,15 @@ struct MidCntFilter {
     std::string gene_name;
     unsigned int min_mid;
     unsigned int max_mid;
+};
+
+struct levelgenednb {
+    levelgenednb() {}
+    levelgenednb(float tx, float ty, uint32_t tm, float tc) : x(tx), y(ty), midcnt(tm), color(tc) {}
+    float x;
+    float y;
+    uint32_t midcnt;
+    float color;
 };
 
 hid_t getMemtypeOfGeneData();

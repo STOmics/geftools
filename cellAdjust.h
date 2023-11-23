@@ -81,8 +81,8 @@ class GEFTOOLS_API cellAdjust {
 
     void getMultiLabelInfoFromBgef(const string &strinput, vector<vector<int>> &vecpos, vector<LabelGeneData> &vecdata,
                                    uint32_t &total_mid, int bin, int thcnt);
-    void getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<int>> &vecpos, vector<LabelCellData> &vecdata,
-                                   vector<LabelCellData> &total_data);
+    void getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<int>> &vecpos,
+                                   vector<LabelCellData> &vecdata, vector<LabelCellDataSum> &total_data);
     void GetPositionIndexByClusterId(const char *input_file, std::vector<int> cls_id,
                                      std::vector<std::vector<int>> &clusterpos_list);
     int GenerateFilterBgefFileByMidCount(const std::string input_file, const std::string output_file, int bin_size,
@@ -97,6 +97,10 @@ class GEFTOOLS_API cellAdjust {
     int GenerateBgefByLasso(const string strinput, const string stroutput, vector<vector<int>> vecpos);
     void DoLassoGenerate(const string strinput, const string stroutput, vector<vector<int>> vecpos);
     int GenerateLassoBgefDuration();
+
+    int createRegionBgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos,
+                               int bin_size);
+    int createRegionCgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos);
 
   private:
     bool m_bexon = false;
