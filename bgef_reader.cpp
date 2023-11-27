@@ -110,6 +110,23 @@ BgefReader::~BgefReader() {
     // }
 }
 
+void BgefReader::closeH5() {
+    if (genes_ != nullptr) free(genes_);
+    if (cell_indices_ != nullptr) free(cell_indices_);
+    if (expressions_ != nullptr) free(expressions_);
+    if (reduce_expressions_ != nullptr) free(reduce_expressions_);
+    if (m_exonPtr != nullptr) free(m_exonPtr);
+
+    if (exp_dataset_id_ > 0) H5Dclose(exp_dataset_id_);
+    if (exp_dataspace_id_ > 0) H5Sclose(exp_dataspace_id_);
+    if (gene_dataset_id_ > 0) H5Dclose(gene_dataset_id_);
+    if (gene_dataspace_id_ > 0) H5Sclose(gene_dataspace_id_);
+    if (whole_exp_dataset_id_ > 0) H5Dclose(whole_exp_dataset_id_);
+    if (whole_exp_dataspace_id_ > 0) H5Sclose(whole_exp_dataspace_id_);
+    if (m_exon_did > 0) H5Dclose(m_exon_did);
+    if (file_id_ > 0) H5Fclose(file_id_);
+}
+
 void BgefReader::openExpressionSpace(int bin_size) {
     hsize_t dims[1];
     // Read raw data
@@ -289,14 +306,19 @@ ExpressionAttr &BgefReader::getExpressionAttr() {
     hid_t attr;
     attr = H5Aopen(exp_dataset_id_, "minX", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr_.min_x));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "minY", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr_.min_y));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "maxX", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr_.max_x));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "maxY", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr_.max_y));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "maxExp", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &(expression_attr_.max_exp));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "resolution", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &(expression_attr_.resolution));
 
@@ -811,6 +833,8 @@ void BgefReader::getGeneExpression(unordered_map<string, vector<Expression>> &ge
         for (unsigned int i = gene[gene_id].offset; i < end; i++) {
             exps.emplace_back(expression[i]);
         }
+        if (version_ > GeneNameVersion) {
+        }
 
         gene_exp_map.insert(unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
     }
@@ -845,16 +869,22 @@ int BgefReader::generateGeneExp(int bin_size, int n_thread) {
     hid_t attr;
     attr = H5Aopen(exp_dataset_id_, "minX", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr.min_x));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "minY", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr.min_y));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "maxX", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr.max_x));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "maxY", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_INT, &(expression_attr.max_y));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "maxExp", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &(expression_attr_.max_exp));
+    H5Aclose(attr);
     attr = H5Aopen(exp_dataset_id_, "resolution", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &(expression_attr_.resolution));
+    H5Aclose(attr);
 
     opts_ = BgefOptions::GetInstance();
     opts_->bin_sizes_.clear();

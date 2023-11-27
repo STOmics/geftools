@@ -62,6 +62,7 @@ class GEFTOOLS_API BgefReader {
   public:
     BgefReader(const string &filename, int bin_size, int n_thread = 1, bool verbose = false);
     virtual ~BgefReader();
+    void closeH5();
     int getVersion() const;
     int getBinSize() const;
     unsigned int getGeneNum() const;

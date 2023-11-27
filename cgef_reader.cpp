@@ -41,16 +41,19 @@ CgefReader::~CgefReader() { closeH5(); }
 
 void CgefReader::closeH5() {
     if (gene_array_ == nullptr) return;
-    H5Tclose(str32_type_);
-    H5Dclose(cell_dataset_id_);
-    H5Dclose(gene_dataset_id_);
-    H5Dclose(cell_exp_dataset_id_);
-    H5Dclose(gene_exp_dataset_id_);
-    H5Sclose(cell_dataspace_id_);
-    H5Sclose(cell_exp_dataspace_id_);
-    H5Sclose(gene_exp_dataspace_id_);
-    H5Gclose(group_id_);
-    H5Fclose(file_id_);
+    if (str32_type_ > 0) H5Tclose(str32_type_);
+    if (cell_dataset_id_ > 0) H5Dclose(cell_dataset_id_);
+    if (gene_dataset_id_ > 0) H5Dclose(gene_dataset_id_);
+    if (cell_exp_dataset_id_ > 0) H5Dclose(cell_exp_dataset_id_);
+    if (gene_exp_dataset_id_ > 0) H5Dclose(gene_exp_dataset_id_);
+    if (cell_dataspace_id_ > 0) H5Sclose(cell_dataspace_id_);
+    if (cell_exp_dataspace_id_ > 0) H5Sclose(cell_exp_dataspace_id_);
+    if (gene_exp_dataspace_id_ > 0) H5Sclose(gene_exp_dataspace_id_);
+    if (group_id_ > 0) H5Gclose(group_id_);
+    if (file_id_ > 0) {
+        H5Fclose(file_id_);
+    }
+
     free(gene_array_);
     gene_array_ = nullptr;
     if (cell_array_ != nullptr) free(cell_array_);
@@ -66,19 +69,22 @@ void CgefReader::getAttr() {
     if (m_ver == 0) {
         hid_t attr = H5Aopen(file_id_, "version", H5P_DEFAULT);
         H5Aread(attr, H5T_NATIVE_UINT32, &m_ver);
+        H5Aclose(attr);
 
         attr = H5Aopen(file_id_, "resolution", H5P_DEFAULT);
         H5Aread(attr, H5T_NATIVE_UINT32, &m_resolution);
+        H5Aclose(attr);
 
         attr = H5Aopen(file_id_, "offsetX", H5P_DEFAULT);
         H5Aread(attr, H5T_NATIVE_INT32, &offsetX);
+        H5Aclose(attr);
 
         attr = H5Aopen(file_id_, "offsetY", H5P_DEFAULT);
         H5Aread(attr, H5T_NATIVE_INT32, &offsetY);
+        H5Aclose(attr);
 
         attr = H5Aopen(file_id_, "geftool_ver", H5P_DEFAULT);
         H5Aread(attr, H5T_NATIVE_UINT32, m_ver_tool);
-
         H5Aclose(attr);
     }
 }

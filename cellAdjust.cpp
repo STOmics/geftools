@@ -2661,10 +2661,14 @@ int cellAdjust::createRegionBgefByCord(const string &strinput, const string &str
                 l_id = (l_id << 32) | (ptr[j].y / bin_size) * bin_size;
 
                 if (region_exp.find(l_id) != region_exp.end()) {
-                    vector<Expression> exps;
-                    exps.emplace_back(ptr[j]);
-                    m_bgefopts->map_gene_exp_.insert(
-                        unordered_map<string, vector<Expression>>::value_type(genePtr[i].gene, exps));
+                    if (m_bgefopts->map_gene_exp_.find(genePtr[i].gene) != m_bgefopts->map_gene_exp_.end()) {
+                        m_bgefopts->map_gene_exp_[genePtr[i].gene].emplace_back(ptr[j]);
+                    } else {
+                        vector<Expression> exps;
+                        exps.emplace_back(ptr[j]);
+                        m_bgefopts->map_gene_exp_.insert(
+                            unordered_map<string, vector<Expression>>::value_type(genePtr[i].gene, exps));
+                    }
                 }
             }
         }

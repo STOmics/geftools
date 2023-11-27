@@ -73,7 +73,8 @@ bool isOlderCellExpDataVersion(hid_t fileId) {
         hid_t attr = H5Aopen(fileId, "geftool_ver", H5P_DEFAULT);
         H5Aread(attr, H5T_NATIVE_UINT32, geftoolVersion);
         log_info << util::Format("version is {0}.{1}.{2} ", geftoolVersion[0], geftoolVersion[1], geftoolVersion[2]);
-
+        H5Aclose(attr);
+        
         if (geftoolVersion[0] == 0 && geftoolVersion[1] <= 7) {
             if (geftoolVersion[1] == 7 && geftoolVersion[2] >= 6) {
                 return false;
