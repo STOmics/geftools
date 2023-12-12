@@ -291,7 +291,7 @@ void bgefCreater::getmaskgenedata_bgef(vector<Gene> &vgene, vector<Expression> &
                     vexon.push_back(m_expPtr[idx].exon);
                 }
                 cnt = ptr->vecExp.size();
-                vgene.emplace_back(m_genePtr[ptr->geneid].gene, offset, cnt);
+                vgene.emplace_back(m_genePtr[ptr->geneid].gene, "", offset, cnt);
                 offset += cnt;
                 ngcnt++;
             }
@@ -306,7 +306,7 @@ void bgefCreater::getmaskgenedata_bgef(vector<Gene> &vgene, vector<Expression> &
                     m_maxExp = std::max(m_maxExp, m_expPtr[idx].count);
                 }
                 cnt = ptr->vecExp.size();
-                vgene.emplace_back(m_genePtr[ptr->geneid].gene, offset, cnt);
+                vgene.emplace_back(m_genePtr[ptr->geneid].gene, "", offset, cnt);
                 offset += cnt;
                 ngcnt++;
             }
@@ -330,7 +330,7 @@ void bgefCreater::getmaskgenedata_gem(vector<Gene> &vgene, vector<Expression> &v
             gdata *ptr = m_queue.getPtr();
             if (ptr->vecExp.size()) {
                 string &str_gene = m_vecgenename[ptr->geneid];
-                vgene.emplace_back(str_gene.c_str(), offset, ptr->vecExp.size());
+                vgene.emplace_back(str_gene.c_str(), "", offset, ptr->vecExp.size());
                 offset += ptr->vecExp.size();
                 auto &vecrawexp = m_map_gene_exp[str_gene];
                 for (uint32_t idx : ptr->vecExp) {
@@ -348,7 +348,7 @@ void bgefCreater::getmaskgenedata_gem(vector<Gene> &vgene, vector<Expression> &v
             gdata *ptr = m_queue.getPtr();
             if (ptr->vecExp.size()) {
                 string &str_gene = m_vecgenename[ptr->geneid];
-                vgene.emplace_back(str_gene.c_str(), offset, ptr->vecExp.size());
+                vgene.emplace_back(str_gene.c_str(), "", offset, ptr->vecExp.size());
                 offset += ptr->vecExp.size();
                 auto &vecrawexp = m_map_gene_exp[str_gene];
                 for (uint32_t idx : ptr->vecExp) {

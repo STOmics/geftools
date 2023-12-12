@@ -107,33 +107,45 @@ struct GEFTOOLS_API ExpressionAttr {
 };
 
 struct GEFTOOLS_API Gene {
-    Gene(const char *g, unsigned int o, unsigned c) {
+    Gene(const char *g, const char *n, unsigned int o, unsigned c) {
         int i = 0;
         while (g[i] != '\0') {
             gene[i] = g[i];
             ++i;
         }
+        int j = 0;
+        while (n[j] != '\0') {
+            gene_name[j] = n[j];
+            ++j;
+        }
         offset = o;
         count = c;
     }
     char gene[64] = {0};
+    char gene_name[64] = {0};
+
     unsigned int offset;
     unsigned int count;
 };
 
 struct GEFTOOLS_API GeneStat {
-    GeneStat(string &g, unsigned int m, float e) {
+    GeneStat(string &g, string &n, unsigned int m, float e) {
         memcpy(gene, g.c_str(), g.size());
+        memcpy(gene_name, n.c_str(), n.size());
         mid_count = m;
         E10 = e;
     }
-    GeneStat(const char *g, unsigned int m, float e) {
+    GeneStat(const char *g, const char *n, unsigned int m, float e) {
         int len = strlen(g);
         memcpy(gene, g, len);
+        int len_name = strlen(n);
+        memcpy(gene_name, n, len_name);
         mid_count = m;
         E10 = e;
     }
     char gene[64] = {0};
+    char gene_name[64] = {0};
+
     unsigned int mid_count;
     float E10;
 };
@@ -214,11 +226,16 @@ struct GEFTOOLS_API CellAttr {
 
 struct GEFTOOLS_API GeneData {
     GeneData() = default;
-    GeneData(const char *g, unsigned int o, unsigned int c, unsigned int e, unsigned m) {
+    GeneData(const char *g, const char *n, unsigned int o, unsigned int c, unsigned int e, unsigned m) {
         int i = 0;
         while (g[i] != '\0') {
             gene_name[i] = g[i];
             ++i;
+        }
+        int j = 0;
+        while (n[j] != '\0') {
+            gene_name_id[j] = n[j];
+            ++j;
         }
         offset = o;
         cell_count = c;
@@ -226,6 +243,7 @@ struct GEFTOOLS_API GeneData {
         max_mid_count = m;
     }
     char gene_name[64] = {0};
+    char gene_name_id[64] = {0};
     unsigned int offset {0};  ///< Offset of current gene in geneExp, 0-based
     unsigned int cell_count {0};
     unsigned int exp_count {0};
@@ -347,7 +365,7 @@ struct levelgenednb {
     float color;
 };
 
-hid_t getMemtypeOfGeneData();
+hid_t getMemtypeOfGeneData(int version);
 hid_t getMemtypeOfGeneExpData();
 hid_t getMemtypeOfCellData();
 hid_t getMemtypeOfCellExpData();

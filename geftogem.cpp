@@ -5,16 +5,6 @@
 
 #include "utils.h"
 
-// #define GEM_HEADER          \
-//     "#FileFormat=GEMv0.1\n" \
-//     "#SortedBy=None\n"      \
-//     "#BinType={0}\n"        \
-//     "#BinSize={1}\n"        \
-//     "#Omics={2}\n"          \
-//     "#Stereo-seqChip={3}\n" \
-//     "#OffsetX={4}\n"        \
-//     "#OffsetY={5}\n"
-
 #define GEM_HEADER            \
     "#FileFormat=GEMv%d.%d\n" \
     "#SortedBy=None\n"        \
@@ -53,11 +43,19 @@ void geftogem::getBgefGene(hid_t file_id) {
     hid_t genememtype, strtype;
     strtype = H5Tcopy(H5T_C_S1);
     H5Tset_size(strtype, 64);
+    if (gef_version_ > GeneNameVersion) {
+        genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(genememtype, "geneID", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(genememtype, "geneName", HOFFSET(Gene, gene_name), strtype);
+        H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+    } else {
+        genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+    }
 
-    genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
-    H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
-    H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
     H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
     H5Tclose(genememtype);
     H5Tclose(strtype);
@@ -130,34 +128,69 @@ void geftogem::bgef2gem() {
 
     stringstream sstrout;
     char buf[1024] = {0};
-    sprintf(buf, GEM_HEADER, 0, 1, "Bin", m_bin, omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
 
-    if (m_bexon && m_boutexon) {
-        sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\n";
-        *pout << sstrout.str();
-        for (uint32_t i = 0; i < m_genencnt; ++i) {
-            sstrout.clear();
-            sstrout.str("");
-            Expression *ptr = m_expPtr + m_genePtr[i].offset;
-            for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
-                sstrout << m_genePtr[i].gene << '\t' << ptr[j].x << '\t' << ptr[j].y << '\t' << ptr[j].count << '\t'
-                        << ptr[j].exon << '\n';
-            }
+    if (gef_version_ > GeneNameVersion) {
+        sprintf(buf, GEM_HEADER, 0, 2, "Bin", m_bin, omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
+
+        if (m_bexon && m_boutexon) {
+            sstrout << buf << "geneID\tgeneName\tx\ty\tMIDCount\tExonCount\n";
             *pout << sstrout.str();
+            for (uint32_t i = 0; i < m_genencnt; ++i) {
+                sstrout.clear();
+                sstrout.str("");
+                Expression *ptr = m_expPtr + m_genePtr[i].offset;
+                for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
+                    sstrout << m_genePtr[i].gene << '\t' << m_genePtr[i].gene_name << '\t' << ptr[j].x << '\t' << ptr[j].y
+                            << '\t' << ptr[j].count << '\t' << ptr[j].exon << '\n';
+                }
+                *pout << sstrout.str();
+            }
+        } else {
+            sstrout << buf << "geneID\tgeneName\tx\ty\tMIDCount\n";
+            *pout << sstrout.str();
+            for (uint32_t i = 0; i < m_genencnt; ++i) {
+                sstrout.clear();
+                sstrout.str("");
+                Expression *ptr = m_expPtr + m_genePtr[i].offset;
+                for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
+                    sstrout << m_genePtr[i].gene << '\t' << m_genePtr[i].gene_name << '\t' << ptr[j].x << '\t'
+                            << ptr[j].y << '\t' << ptr[j].count << '\n';
+                }
+                *pout << sstrout.str();
+            }
         }
     } else {
-        sstrout << buf << "geneID\tx\ty\tMIDCount\n";
-        *pout << sstrout.str();
-        for (uint32_t i = 0; i < m_genencnt; ++i) {
-            sstrout.clear();
-            sstrout.str("");
-            Expression *ptr = m_expPtr + m_genePtr[i].offset;
-            for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
-                sstrout << m_genePtr[i].gene << '\t' << ptr[j].x << '\t' << ptr[j].y << '\t' << ptr[j].count << '\n';
-            }
+        sprintf(buf, GEM_HEADER, 0, 1, "Bin", m_bin, omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
+
+        if (m_bexon && m_boutexon) {
+            sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\n";
             *pout << sstrout.str();
+            for (uint32_t i = 0; i < m_genencnt; ++i) {
+                sstrout.clear();
+                sstrout.str("");
+                Expression *ptr = m_expPtr + m_genePtr[i].offset;
+                for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
+                    sstrout << m_genePtr[i].gene << '\t' << ptr[j].x << '\t' << ptr[j].y << '\t' << ptr[j].count << '\t'
+                            << ptr[j].exon << '\n';
+                }
+                *pout << sstrout.str();
+            }
+        } else {
+            sstrout << buf << "geneID\tx\ty\tMIDCount\n";
+            *pout << sstrout.str();
+            for (uint32_t i = 0; i < m_genencnt; ++i) {
+                sstrout.clear();
+                sstrout.str("");
+                Expression *ptr = m_expPtr + m_genePtr[i].offset;
+                for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
+                    sstrout << m_genePtr[i].gene << '\t' << ptr[j].x << '\t' << ptr[j].y << '\t' << ptr[j].count
+                            << '\n';
+                }
+                *pout << sstrout.str();
+            }
         }
     }
+
     pout->flush();
     if (m_strout != "stdout") {
         delete pout;
@@ -170,7 +203,11 @@ void geftogem::getdnb() {
     uint64_t l_id = 0;
     if (m_bexon) {
         for (uint32_t i = 0; i < m_genencnt; i++) {
-            m_vecgenename.emplace_back(m_genePtr[i].gene);
+            m_vecgeneid.emplace_back(m_genePtr[i].gene);
+            if (gef_version_ > GeneNameVersion) {
+                m_vecgenename.emplace_back(m_genePtr[i].gene_name);
+            }
+
             Expression *ptr = m_expPtr + m_genePtr[i].offset;
             for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
                 l_id = ptr[j].x;
@@ -187,7 +224,11 @@ void geftogem::getdnb() {
                                  m_hash_vecdnb_exon.size());
     } else {
         for (uint32_t i = 0; i < m_genencnt; i++) {
-            m_vecgenename.emplace_back(m_genePtr[i].gene);
+            m_vecgeneid.emplace_back(m_genePtr[i].gene);
+            if (gef_version_ > GeneNameVersion) {
+                m_vecgenename.emplace_back(m_genePtr[i].gene_name);
+            }
+
             Expression *ptr = m_expPtr + m_genePtr[i].offset;
             for (uint32_t j = 0; j < m_genePtr[i].count; j++) {
                 l_id = ptr[j].x;
@@ -227,6 +268,11 @@ void geftogem::readBgef(const string &strinput) {
         log_info << "can not find omics type from file. using default type: Transcriptomics. ";
         omics_type = "Transcriptomics";
     }
+    hid_t attr;
+    attr = H5Aopen(file_id, "version", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_UINT, &gef_version_);
+    H5Aclose(attr);
+
     getBgefGene(file_id);
     getBgefExp(file_id);
     H5Fclose(file_id);
@@ -347,32 +393,65 @@ void geftogem::cgef2gem() {
     }
     stringstream sstrout;
     char buf[1024] = {0};
-    sprintf(buf, CGEM_HEADER, 0, 1, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
-    sstrout << buf << "geneID\tx\ty\tMIDCount\tCellID\n";
-    *pout << sstrout.str();
-    uint64_t l_id = 0;
-    int x, y;
-    auto itor = m_hash_cellpoint.begin();
-    for (; itor != m_hash_cellpoint.end(); itor++) {
-        vector<cv::Point> &vecpoint = itor->second.vecP;
-        sstrout.clear();
-        sstrout.str("");
-        for (cv::Point &pt : vecpoint) {
-            x = pt.x + itor->second.offsetx;
-            y = pt.y + itor->second.offsety;
-            l_id = x;
-            l_id = (l_id << 32) | y;
-            auto dnb_itor = m_hash_vecdnb.find(l_id);
-            if (dnb_itor != m_hash_vecdnb.end()) {
-                for (Dnbs &dnbs : dnb_itor->second) {
-                    sstrout << m_vecgenename[dnbs.geneid] << '\t' << x << '\t' << y << '\t' << dnbs.midcnt << '\t'
-                            << itor->first << '\n';
-                }
-                m_hash_vecdnb.erase(l_id);
-            }
-        }
+
+    if (gef_version_ > GeneNameVersion) {
+        sprintf(buf, CGEM_HEADER, 0, 2, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
+        sstrout << buf << "geneID\tgeneName\tx\ty\tMIDCount\tCellID\n";
         *pout << sstrout.str();
+        uint64_t l_id = 0;
+        int x, y;
+
+        auto itor = m_hash_cellpoint.begin();
+        for (; itor != m_hash_cellpoint.end(); itor++) {
+            vector<cv::Point> &vecpoint = itor->second.vecP;
+            sstrout.clear();
+            sstrout.str("");
+            for (cv::Point &pt : vecpoint) {
+                x = pt.x + itor->second.offsetx;
+                y = pt.y + itor->second.offsety;
+                l_id = x;
+                l_id = (l_id << 32) | y;
+                auto dnb_itor = m_hash_vecdnb.find(l_id);
+                if (dnb_itor != m_hash_vecdnb.end()) {
+                    for (Dnbs &dnbs : dnb_itor->second) {
+                        sstrout << m_vecgeneid[dnbs.geneid] << '\t' << m_vecgenename[dnbs.geneid] << '\t' << x << '\t'
+                                << y << '\t' << dnbs.midcnt << '\t' << itor->first << '\n';
+                    }
+                    m_hash_vecdnb.erase(l_id);
+                }
+            }
+            *pout << sstrout.str();
+        }
+    } else {
+        sprintf(buf, CGEM_HEADER, 0, 1, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
+        sstrout << buf << "geneID\tx\ty\tMIDCount\tCellID\n";
+        *pout << sstrout.str();
+        uint64_t l_id = 0;
+        int x, y;
+
+        auto itor = m_hash_cellpoint.begin();
+        for (; itor != m_hash_cellpoint.end(); itor++) {
+            vector<cv::Point> &vecpoint = itor->second.vecP;
+            sstrout.clear();
+            sstrout.str("");
+            for (cv::Point &pt : vecpoint) {
+                x = pt.x + itor->second.offsetx;
+                y = pt.y + itor->second.offsety;
+                l_id = x;
+                l_id = (l_id << 32) | y;
+                auto dnb_itor = m_hash_vecdnb.find(l_id);
+                if (dnb_itor != m_hash_vecdnb.end()) {
+                    for (Dnbs &dnbs : dnb_itor->second) {
+                        sstrout << m_vecgeneid[dnbs.geneid] << '\t' << x << '\t' << y << '\t' << dnbs.midcnt << '\t'
+                                << itor->first << '\n';
+                    }
+                    m_hash_vecdnb.erase(l_id);
+                }
+            }
+            *pout << sstrout.str();
+        }
     }
+
     pout->flush();
     if (m_strout != "stdout") {
         delete pout;
@@ -389,33 +468,65 @@ void geftogem::cgef2gem_exon() {
 
     stringstream sstrout;
     char buf[1024] = {0};
-    sprintf(buf, CGEM_HEADER, 0, 1, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
-    sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\tCellID\n";
-    *pout << sstrout.str();
 
-    uint64_t l_id = 0;
-    int x, y;
-    auto itor = m_hash_cellpoint.begin();
-    for (; itor != m_hash_cellpoint.end(); itor++) {
-        vector<cv::Point> &vecpoint = itor->second.vecP;
-        sstrout.clear();
-        sstrout.str("");
-        for (cv::Point &pt : vecpoint) {
-            x = pt.x + itor->second.offsetx;
-            y = pt.y + itor->second.offsety;
-            l_id = x;
-            l_id = (l_id << 32) | y;
-            auto dnb_itor = m_hash_vecdnb_exon.find(l_id);
-            if (dnb_itor != m_hash_vecdnb_exon.end()) {
-                for (Dnbs_exon &dnbs : dnb_itor->second) {
-                    sstrout << m_vecgenename[dnbs.geneid] << '\t' << x << '\t' << y << '\t' << dnbs.midcnt << '\t'
-                            << dnbs.exon << '\t' << itor->first << '\n';
-                }
-                m_hash_vecdnb_exon.erase(l_id);
-            }
-        }
+    if (gef_version_ > GeneNameVersion) {
+        sprintf(buf, CGEM_HEADER, 0, 2, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
+        sstrout << buf << "geneID\tgeneName\tx\ty\tMIDCount\tExonCount\tCellID\n";
         *pout << sstrout.str();
+        uint64_t l_id = 0;
+        int x, y;
+
+        auto itor = m_hash_cellpoint.begin();
+        for (; itor != m_hash_cellpoint.end(); itor++) {
+            vector<cv::Point> &vecpoint = itor->second.vecP;
+            sstrout.clear();
+            sstrout.str("");
+            for (cv::Point &pt : vecpoint) {
+                x = pt.x + itor->second.offsetx;
+                y = pt.y + itor->second.offsety;
+                l_id = x;
+                l_id = (l_id << 32) | y;
+                auto dnb_itor = m_hash_vecdnb_exon.find(l_id);
+                if (dnb_itor != m_hash_vecdnb_exon.end()) {
+                    for (Dnbs_exon &dnbs : dnb_itor->second) {
+                        sstrout << m_vecgeneid[dnbs.geneid] << '\t' << m_vecgenename[dnbs.geneid] << '\t' << x << '\t'
+                                << y << '\t' << dnbs.midcnt << '\t' << dnbs.exon << '\t' << itor->first << '\n';
+                    }
+                    m_hash_vecdnb_exon.erase(l_id);
+                }
+            }
+            *pout << sstrout.str();
+        }
+    } else {
+        sprintf(buf, CGEM_HEADER, 0, 1, "CellBin", "Cell", omics_type.c_str(), m_strsn.c_str(), m_min_x, m_min_y);
+        sstrout << buf << "geneID\tx\ty\tMIDCount\tExonCount\tCellID\n";
+        *pout << sstrout.str();
+        uint64_t l_id = 0;
+        int x, y;
+
+        auto itor = m_hash_cellpoint.begin();
+        for (; itor != m_hash_cellpoint.end(); itor++) {
+            vector<cv::Point> &vecpoint = itor->second.vecP;
+            sstrout.clear();
+            sstrout.str("");
+            for (cv::Point &pt : vecpoint) {
+                x = pt.x + itor->second.offsetx;
+                y = pt.y + itor->second.offsety;
+                l_id = x;
+                l_id = (l_id << 32) | y;
+                auto dnb_itor = m_hash_vecdnb_exon.find(l_id);
+                if (dnb_itor != m_hash_vecdnb_exon.end()) {
+                    for (Dnbs_exon &dnbs : dnb_itor->second) {
+                        sstrout << m_vecgeneid[dnbs.geneid] << '\t' << x << '\t' << y << '\t' << dnbs.midcnt << '\t'
+                                << dnbs.exon << '\t' << itor->first << '\n';
+                    }
+                    m_hash_vecdnb_exon.erase(l_id);
+                }
+            }
+            *pout << sstrout.str();
+        }
     }
+
     pout->flush();
     if (m_strout != "stdout") {
         delete pout;

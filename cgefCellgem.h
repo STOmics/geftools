@@ -109,6 +109,7 @@ class GEFTOOLS_API cgefCellgem {
 
     uint32_t m_borcnt = 0;
     unordered_map<uint32_t, vector<cellt>> m_map_gene;  // 记录基因占据的cell信息
+    int gef_version_ = 2;
 };
 
 #endif

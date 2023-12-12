@@ -33,8 +33,9 @@ class GEFTOOLS_API BgefOptions {
         std::unordered_map<std::string, std::vector<Expression>>().swap(map_gene_exp_);
         m_vec_bin100.clear();
         std::vector<GeneStat>().swap(m_vec_bin100);
-
-        m_stromics = "";
+        gene_name_map.clear();
+        unordered_map<string, string>().swap(gene_name_map);
+        m_stromics.clear();
     }
 
     int thread_ = 8;  // 设置取bin线程数
@@ -66,6 +67,10 @@ class GEFTOOLS_API BgefOptions {
     int offset_x_ = 0;  // offset of coordinate
     int offset_y_ = 0;
     string m_stromics;  // 物种组别
+
+    int bgef_version = 0;
+    bool has_gene_name = false;
+    unordered_map<string, string> gene_name_map;
 };
 
 #endif  // GENETOH5_COMMANDPARSE_H

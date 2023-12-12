@@ -148,6 +148,7 @@ void gem2gef(BgefOptions *opts) {
 
     unsigned int resolution;
     float gef_area;
+    opts->gene_name_map.clear();
 
     if (!H5Fis_hdf5(opts->input_file_.c_str())) {
         mRead(opts);
@@ -156,6 +157,11 @@ void gem2gef(BgefOptions *opts) {
         BgefReader bgef_reader(opts->input_file_, 1, opts->verbose_);
         ExpressionAttr expression_attr = bgef_reader.getExpressionAttr();
         gef_area = bgef_reader.gef_area_;
+        opts->bgef_version = bgef_reader.getVersion();
+        if (opts->bgef_version > GeneNameVersion) {
+            opts->has_gene_name = true;
+            bgef_reader.getGeneId2GeneNameMap(opts->gene_name_map);
+        }
 
         if (opts->region_.empty()) {
             bgef_reader.getGeneExpression(opts->map_gene_exp_);
@@ -193,6 +199,7 @@ void gem2gef(BgefOptions *opts) {
     BgefWriter bgef_writer(opts->output_file_, opts->verbose_, opts->m_bexon, opts->m_stromics);
     bgef_writer.setResolution(resolution);
     bgef_writer.SetGefArea(gef_area);
+    bgef_writer.SetGefFormatVersion(opts->bgef_version);
 
     int genecnt = 0;
     for (unsigned int bin : opts->bin_sizes_) {
@@ -217,22 +224,22 @@ void gem2gef(BgefOptions *opts) {
         log_info << "bin " << bin << " matrix: min_x=" << dnbAttr.min_x << " len_x=" << dnbAttr.len_x
                  << " min_y=" << dnbAttr.min_y << " len_y=" << dnbAttr.len_y << " matrix_len=" << matrix_len;
 
-        if (bin == 1) {
-            dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
-            assert(dnb_matrix.pmatrix_us);
-            if (!dnb_matrix.pmatrix_us) {
-                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                return;
-            }
-            if (opts->m_bexon) {
-                dnb_matrix.pexon16 = (unsigned short *)calloc(matrix_len, 2);
-                assert(dnb_matrix.pexon16);
-                if (!dnb_matrix.pexon16) {
-                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                    return;
-                }
-            }
-        } else {
+        // if (bin == 1) {
+        //     dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
+        //     assert(dnb_matrix.pmatrix_us);
+        //     if (!dnb_matrix.pmatrix_us) {
+        //         log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+        //         return;
+        //     }
+        //     if (opts->m_bexon) {
+        //         dnb_matrix.pexon16 = (unsigned short *)calloc(matrix_len, 2);
+        //         assert(dnb_matrix.pexon16);
+        //         if (!dnb_matrix.pexon16) {
+        //             log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+        //             return;
+        //         }
+        //     }
+        // } else {
             dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
             assert(dnb_matrix.pmatrix);
             if (!dnb_matrix.pmatrix) {
@@ -247,7 +254,7 @@ void gem2gef(BgefOptions *opts) {
                     return;
                 }
             }
-        }
+        // }
 
         for (int i = 0; i < opts->thread_; i++) {
             auto *task = new DnbMergeTask(opts->map_gene_exp_.size(), i, bin);
@@ -281,7 +288,12 @@ void gem2gef(BgefOptions *opts) {
             maxexon = std::max(maxexon, pgeneinfo->maxexon);
 
             if (bin == 100) {
-                opts->m_vec_bin100.emplace_back(pgeneinfo->geneid, pgeneinfo->umicnt, pgeneinfo->e10);
+                if (opts->has_gene_name) {
+                    opts->m_vec_bin100.emplace_back(pgeneinfo->geneid, opts->gene_name_map[pgeneinfo->geneid].c_str(),
+                                                    pgeneinfo->umicnt, pgeneinfo->e10);
+                } else {
+                    opts->m_vec_bin100.emplace_back(pgeneinfo->geneid, "", pgeneinfo->umicnt, pgeneinfo->e10);
+                }
             }
             delete pgeneinfo;
             genecnt++;
@@ -304,7 +316,13 @@ void gem2gef(BgefOptions *opts) {
             }
 
             if (bin != 100 || opts->m_stattype == 2) {
-                opts->genes_.emplace_back(itor.first.c_str(), offset, static_cast<unsigned int>(itor.second.size()));
+                if (opts->has_gene_name) {
+                    opts->genes_.emplace_back(itor.first.c_str(), opts->gene_name_map[itor.first].c_str(), offset,
+                                              static_cast<unsigned int>(itor.second.size()));
+                } else {
+                    opts->genes_.emplace_back(itor.first.c_str(), "", offset,
+                                              static_cast<unsigned int>(itor.second.size()));
+                }
                 offset += itor.second.size();
             }
         }
@@ -318,20 +336,20 @@ void gem2gef(BgefOptions *opts) {
 
         thpool.waitTaskDone();
         opts->m_genes_queue.clear(bin);
-        
+
         // write dnb
         writednb(opts, bgef_writer, bin);
 
-        if (bin == 1) {
-            if (dnb_matrix.pmatrix_us != nullptr) {
-                free(dnb_matrix.pmatrix_us);
-                dnb_matrix.pmatrix_us = nullptr;
-                if (opts->m_bexon) {
-                    free(dnb_matrix.pexon16);
-                    dnb_matrix.pexon16 = nullptr;
-                }
-            }
-        } else {
+        // if (bin == 1) {
+        //     if (dnb_matrix.pmatrix_us != nullptr) {
+        //         free(dnb_matrix.pmatrix_us);
+        //         dnb_matrix.pmatrix_us = nullptr;
+        //         if (opts->m_bexon) {
+        //             free(dnb_matrix.pexon16);
+        //             dnb_matrix.pexon16 = nullptr;
+        //         }
+        //     }
+        // } else {
             if (dnb_matrix.pmatrix != nullptr) {
                 free(dnb_matrix.pmatrix);
                 dnb_matrix.pmatrix = nullptr;
@@ -340,10 +358,12 @@ void gem2gef(BgefOptions *opts) {
                     dnb_matrix.pexon32 = nullptr;
                 }
             }
-        }
+        // }
         if (opts->verbose_) printCpuTime(cprev, "bin process");
     }
-
+    if (H5Fis_hdf5(opts->input_file_.c_str())) {
+        bgef_writer.CopyProfileInfo2WholeGef(opts->input_file_, "contour");
+    }
     if (opts->verbose_) printCpuTime(cprev0, "gem2gef");
 }
 
@@ -361,11 +381,25 @@ int mRead(BgefOptions *opts)  // 多线程读
                 opts->offset_x_ = stoi(line.substr(9));
             else if (line.substr(0, 9) == "#OffsetY=")
                 opts->offset_y_ = stoi(line.substr(9));
+            else if (line.substr(0, 12) == "#FileFormat=") {
+                TrimStr(line);
+                string ver = line.substr(line.length() - 1);
+                int gem_ver = std::stoi(ver);
+                if (gem_ver > 1) {
+                    opts->has_gene_name = true;
+                    opts->bgef_version = 4;
+                } else {
+                    opts->bgef_version = 2;
+                }
+            }
             continue;
         }
-        if (line.substr(0, 6) == "geneID") break;
+        if (ContainSubStr(line, "geneID")) break;
     }
 
+    if (ContainSubStr(line, "Exon")) {
+        opts->m_bexon = true;
+    }
     int col = 1;
     for (char ch : line) {
         if (ch == '\t') {
@@ -373,9 +407,6 @@ int mRead(BgefOptions *opts)  // 多线程读
         }
     }
     printf("%s %d\n", line.c_str(), col);
-    if (col == 5) {
-        opts->m_bexon = true;
-    }
 
     ThreadPool thpool(opts->thread_);
     for (int i = 0; i < opts->thread_; i++) {
@@ -394,23 +425,6 @@ int mRead(BgefOptions *opts)  // 多线程读
         }
     }
     gzclose(opts->infile_);
-
-    // Subtract min value of coordinates
-    // int minx = opts->range_[0];
-    // int miny = opts->range_[2];
-    // if (minx != 0 || miny != 0)
-    // {
-    //     opts->offset_x_ += minx;
-    //     opts->offset_y_ += miny;
-    //     for (auto& p : opts->map_gene_exp_)
-    //     {
-    //         for (auto& g : p.second)
-    //         {
-    //             g.x -= minx;
-    //             g.y -= miny;
-    //         }
-    //     }
-    // }
 
     return 0;
 }
@@ -483,32 +497,26 @@ void writednb(BgefOptions *opts, BgefWriter &bgef_writer, int bin) {
     DnbMatrix &dnbM = opts->dnbmatrix_;
     unsigned long number = 0;
     unsigned long matrix_len = (unsigned long)(dnbM.dnb_attr.len_x) * dnbM.dnb_attr.len_y;
-    if (bin == 1) {
-        for (unsigned long i = 0; i < matrix_len; i++) {
-            if (dnbM.pmatrix_us[i].gene_count) {
-                ++number;
-                vec_mid.push_back(dnbM.pmatrix_us[i].mid_count);
-            }
-        }
-    } else {
+    // if (bin == 1) {
+    //     for (unsigned long i = 0; i < matrix_len; i++) {
+    //         if (dnbM.pmatrix_us[i].gene_count) {
+    //             ++number;
+    //             vec_mid.push_back(dnbM.pmatrix_us[i].mid_count);
+    //         }
+    //     }
+    // } else {
         for (unsigned long i = 0; i < matrix_len; i++) {
             if (dnbM.pmatrix[i].gene_count) {
                 ++number;
                 vec_mid.push_back(dnbM.pmatrix[i].mid_count);
             }
-        }
+        // }
     }
 
     int sz = vec_mid.size();
     sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
-    // if (bin > 50) {
-    //     // printf("%d\n", vec_mid[sz-1]);
-    //     dnbM.dnb_attr.max_mid = vec_mid[sz - 1];
-    // } else {
-        int limit = sz * 0.999;
-        // printf("%d %d %d %d \n", sz, limit, vec_mid[sz-1], vec_mid[limit]);
-        dnbM.dnb_attr.max_mid = vec_mid[limit];
-    // }
+    int limit = sz * 0.999;
+    dnbM.dnb_attr.max_mid = vec_mid[limit];
 
     dnbM.dnb_attr.number = number;
     bgef_writer.storeDnb(dnbM, bin);
@@ -527,7 +535,7 @@ void MergeProteinAndRnaMatrices(const string &input_gef, const string &output_ge
     if (raw_gefs.size() != 2) {
         log_error << "too many files input. ";
     } else {
-        if ( !(is_bgef(raw_gefs[0]) && is_bgef(raw_gefs[1])) ) {
+        if (!(is_bgef(raw_gefs[0]) && is_bgef(raw_gefs[1]))) {
             log_error << " input files is wrong. ";
             return;
         }

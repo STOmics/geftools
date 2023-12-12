@@ -39,6 +39,9 @@ class ReadTask : public ITask {
     int mergeGeneinfo();
     int getGeneInfo_exon();
 
+    int getGeneInfoWithGenename();
+    int getGeneInfoWithGenename_exon();
+
   private:
     bool m_bexon = false;
     int m_buflen = 0;
@@ -49,6 +52,7 @@ class ReadTask : public ITask {
     gzFile m_file;
     std::vector<int> &m_range;
     std::unordered_map<std::string, std::vector<Expression>> &m_map_gene_exp;
+    std::unordered_map<std::string, std::string> m_genename_map_per_t;
 
     static string m_leftstr;
     static mutex m_readmtx;   // 读文件锁

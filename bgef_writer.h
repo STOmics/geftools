@@ -27,6 +27,7 @@ class GEFTOOLS_API BgefWriter {
     bool verbose_ = false;
     bool m_bexon = false;
     bool raw_gef_ = false;
+    int gef_version_ = 2;
 
   public:
     BgefWriter(const string &output_filename, bool verbose, bool bexon, const string &stromics);
@@ -47,6 +48,8 @@ class GEFTOOLS_API BgefWriter {
                      unsigned int gene_cnt, unsigned int *exons, unsigned int maxexon);
 
     void SetGefArea(float &area);
+    void SetGefFormatVersion(int version);
+    int CopyProfileInfo2WholeGef(const std::string &input_file, const std::string &group_id);
 };
 
 #endif

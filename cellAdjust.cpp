@@ -27,16 +27,59 @@ cellAdjust::~cellAdjust() {
     if (m_borderdataPtr) {
         free(m_borderdataPtr);
     }
-    if (m_bgeffile_id) {
-        H5Fclose(m_bgeffile_id);
-    }
+    //if (m_bgeffile_id) {
+    //    H5Fclose(m_bgeffile_id);
+    //}
     if (generate_bgef_thread_.joinable()) generate_bgef_thread_.join();
     if (lasso_bgef_thread_.joinable()) lasso_bgef_thread_.join();
 }
 
+void cellAdjust::clear() {
+    if (m_cell_arrayptr) {
+        free(m_cell_arrayptr);
+        m_cell_arrayptr = nullptr;
+    }
+
+    if (m_cellexpPtr) {
+        free(m_cellexpPtr);
+        m_cellexpPtr = nullptr;
+    }
+
+    if (m_olderCellExpPtr) {
+        free(m_olderCellExpPtr);
+        m_olderCellExpPtr = nullptr;
+    }
+
+    if (m_genePtr) {
+        free(m_genePtr);
+        m_genePtr = nullptr;
+    }
+
+    if (m_cellexonPtr) {
+        free(m_cellexonPtr);
+        m_cellexonPtr = nullptr;
+    }
+
+    if (m_cellexonexpPtr) {
+        free(m_cellexonexpPtr);
+        m_cellexonexpPtr = nullptr;
+    }
+}
+
+///////////////////////////////////////////////////////1 stereopy cell adjust//////////////////////////////////////////////////////////////////
 void cellAdjust::readBgef(const string &strinput) {
     timer st(__FUNCTION__);
+    m_bgefopts = BgefOptions::GetInstance();
+    m_bgefopts->input_file_ = strinput;
     m_bgeffile_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (m_bgeffile_id < 0) {
+        log_info << "open bgef file failed. ";
+        return;
+    }
+
+    hid_t vattr = H5Aopen(m_bgeffile_id, "version", H5P_DEFAULT);
+    H5Aread(vattr, H5T_NATIVE_UINT, &m_bgefopts->bgef_version);
+    H5Aclose(vattr);
 
     hsize_t dims[1];
     hid_t gene_did = H5Dopen(m_bgeffile_id, "/geneExp/bin1/gene", H5P_DEFAULT);
@@ -118,8 +161,17 @@ void cellAdjust::readBgef(const string &strinput) {
     }
 
     uint64_t l_id = 0;
+    m_vecgenename.clear();
+    m_vecgeneidname.clear();
     for (int i = 0; i < m_genencnt; i++) {
         m_vecgenename.emplace_back(genePtr[i].gene);
+        if (m_bgefopts->bgef_version > GeneNameVersion) {
+            m_vecgeneidname.emplace_back(genePtr[i].gene_name);
+
+            m_bgefopts->has_gene_name = true;
+            m_bgefopts->gene_name_map.insert(
+                unordered_map<string, string>::value_type(genePtr[i].gene, genePtr[i].gene_name));
+        }
         Expression *ptr = expPtr + genePtr[i].offset;
         for (int j = 0; j < genePtr[i].count; j++) {
             l_id = ptr[j].x;
@@ -136,6 +188,236 @@ void cellAdjust::readBgef(const string &strinput) {
 
     free(genePtr);
     free(expPtr);
+}
+
+int cellAdjust::CompleteBgefFile() {
+    if (m_bgefopts->map_gene_exp_.size() == 0) {
+        log_error << "region has no information. please check. ";
+        return -1;
+    }
+    m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
+    ThreadPool thpool(m_bgefopts->thread_ * 2);
+
+    m_bgefopts->m_stromics.clear();
+    m_bgefopts->m_stromics.append(m_szomics);
+    BgefWriter bgef_writer(m_bgefopts->output_file_, false, m_bexon, m_bgefopts->m_stromics);
+    bgef_writer.setResolution(m_resolution);
+    bgef_writer.SetGefFormatVersion(m_bgefopts->bgef_version);
+
+    int genecnt = 0;
+    for (unsigned int bin : m_bgefopts->bin_sizes_) {
+        auto &dnb_matrix = m_bgefopts->dnbmatrix_;
+        auto &dnbAttr = m_bgefopts->dnbmatrix_.dnb_attr;
+
+        dnbAttr.min_x = (m_min_x / bin) * bin;
+        dnbAttr.len_x = (m_maxx) / bin + 1;
+        dnbAttr.min_y = (m_min_y / bin) * bin;
+        dnbAttr.len_y = (m_maxy) / bin + 1;
+
+        dnbAttr.max_x = (m_maxx / bin) * bin;
+        dnbAttr.max_y = (m_maxy / bin) * bin;
+
+        dnbAttr.max_gene = 0;
+        dnbAttr.max_mid = 0;
+        dnbAttr.number = 0;
+        unsigned long matrix_len = (unsigned long)(dnbAttr.len_x) * dnbAttr.len_y;
+        log_info << "bin " << bin << " matrix: min_x=" << dnbAttr.min_x << " len_x=" << dnbAttr.len_x
+                 << " min_y=" << dnbAttr.min_y << " len_y=" << dnbAttr.len_y << " matrix_len=" << matrix_len;
+
+        dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
+        assert(dnb_matrix.pmatrix);
+        if (!dnb_matrix.pmatrix) {
+            log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+            return -1;
+        }
+        if (m_bexon) {
+            dnb_matrix.pexon32 = (unsigned int *)calloc(matrix_len, 4);
+            assert(dnb_matrix.pexon32);
+            if (!dnb_matrix.pexon32) {
+                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
+                return -1;
+            }
+        }
+
+        for (int i = 0; i < m_bgefopts->thread_; i++) {
+            auto *task = new DnbMergeTask(m_bgefopts->map_gene_exp_.size(), i, bin);
+            thpool.addTask(task);
+        }
+        auto itor = m_bgefopts->map_gene_exp_.begin();
+        for (; itor != m_bgefopts->map_gene_exp_.end(); itor++) {
+            auto *task = new BinTask(bin, itor->first.c_str());
+            thpool.addTask(task);
+        }
+
+        unsigned int offset = 0;
+        unsigned int maxexp = 0;
+        unsigned int maxexon = 0;
+        genecnt = 0;
+        map<string, vector<Expression>> gene_info;
+        while (true) {
+            GeneInfo *pgeneinfo = m_bgefopts->m_geneinfo_queue.getPtr();
+            gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
+
+            maxexp = std::max(maxexp, pgeneinfo->maxexp);
+            maxexon = std::max(maxexon, pgeneinfo->maxexon);
+
+            if (m_bgefopts->has_gene_name) {
+                m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid,
+                                                      m_bgefopts->gene_name_map[pgeneinfo->geneid].c_str(),
+                                                      pgeneinfo->umicnt, pgeneinfo->e10);
+            } else {
+                m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid, "", pgeneinfo->umicnt, pgeneinfo->e10);
+            }
+
+            delete pgeneinfo;
+            genecnt++;
+            if (genecnt == m_bgefopts->map_gene_exp_.size()) {
+                break;
+            }
+        }
+
+        for (auto itor : gene_info) {
+            if (bin == 1) {
+                m_bgefopts->expressions_.insert(m_bgefopts->expressions_.end(), itor.second.begin(), itor.second.end());
+            } else {
+                for (auto g : itor.second) {
+                    g.x *= bin;
+                    g.y *= bin;
+                    m_bgefopts->expressions_.push_back(std::move(g));
+                }
+            }
+
+            if (m_bgefopts->has_gene_name) {
+                m_bgefopts->genes_.emplace_back(itor.first.c_str(), m_bgefopts->gene_name_map[itor.first].c_str(),
+                                                offset, static_cast<unsigned int>(itor.second.size()));
+            } else {
+                m_bgefopts->genes_.emplace_back(itor.first.c_str(), "", offset,
+                                                static_cast<unsigned int>(itor.second.size()));
+            }
+
+            offset += itor.second.size();
+        }
+
+        if (!bgef_writer.storeGene(m_bgefopts->expressions_, m_bgefopts->genes_, dnb_matrix.dnb_attr, maxexp, bin)) {
+            log_info << "can not write to file. check disk capacity. ";
+            lasso_bgef_rate_ = -1;
+            process_rate_ = -1;
+            if (dnb_matrix.pmatrix != nullptr) {
+                free(dnb_matrix.pmatrix);
+                dnb_matrix.pmatrix = nullptr;
+                if (m_bexon) {
+                    free(dnb_matrix.pexon32);
+                    dnb_matrix.pexon32 = nullptr;
+                }
+            }
+            return -1;
+        }
+        if (!bgef_writer.storeGeneExon(m_bgefopts->expressions_, maxexon, bin)) {
+            log_info << "can not write to file. check disk capacity. ";
+            lasso_bgef_rate_ = -1;
+            process_rate_ = -1;
+            if (dnb_matrix.pmatrix != nullptr) {
+                free(dnb_matrix.pmatrix);
+                dnb_matrix.pmatrix = nullptr;
+                if (m_bexon) {
+                    free(dnb_matrix.pexon32);
+                    dnb_matrix.pexon32 = nullptr;
+                }
+            }
+            return -1;
+        }
+        m_bgefopts->expressions_.clear();
+        m_bgefopts->genes_.clear();
+
+        thpool.waitTaskDone();
+        m_bgefopts->m_genes_queue.clear(bin);
+
+        // write dnb
+        if (bin == 100) {
+            vector<GeneStat> &geneStat = m_bgefopts->m_vec_bin100;
+            std::sort(geneStat.begin(), geneStat.end(), [](const GeneStat &p1, const GeneStat &p2) {
+                if (p1.mid_count > p2.mid_count) {
+                    return true;
+                } else if (p1.mid_count == p2.mid_count) {
+                    int ret = strcmp(p1.gene, p2.gene);
+                    return ret < 0;
+                } else {
+                    return false;
+                }
+            });
+            if (!bgef_writer.storeStat(geneStat)) {
+                log_info << "can not write to file. check disk capacity. ";
+                lasso_bgef_rate_ = -1;
+                process_rate_ = -1;
+                if (dnb_matrix.pmatrix != nullptr) {
+                    free(dnb_matrix.pmatrix);
+                    dnb_matrix.pmatrix = nullptr;
+                    if (m_bexon) {
+                        free(dnb_matrix.pexon32);
+                        dnb_matrix.pexon32 = nullptr;
+                    }
+                }
+                return -1;
+            }
+        }
+
+        vector<unsigned int> vec_mid;
+        unsigned long number = 0;
+
+        for (unsigned long i = 0; i < matrix_len; i++) {
+            if (dnb_matrix.pmatrix[i].gene_count) {
+                ++number;
+                vec_mid.push_back(dnb_matrix.pmatrix[i].mid_count);
+            }
+        }
+
+        int sz = vec_mid.size();
+        sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
+        int limit = sz * 0.999;
+        dnbAttr.max_mid = vec_mid[limit];
+
+        dnbAttr.number = number;
+        if (!bgef_writer.storeDnb(dnb_matrix, bin)) {
+            log_info << "can not write to file. check disk capacity. ";
+            lasso_bgef_rate_ = -1;
+            process_rate_ = -1;
+            if (dnb_matrix.pmatrix != nullptr) {
+                free(dnb_matrix.pmatrix);
+                dnb_matrix.pmatrix = nullptr;
+                if (m_bexon) {
+                    free(dnb_matrix.pexon32);
+                    dnb_matrix.pexon32 = nullptr;
+                }
+            }
+            return -1;
+        }
+        if (!bgef_writer.storeWholeExon(dnb_matrix, bin)) {
+            log_info << "can not write to file. check disk capacity. ";
+            lasso_bgef_rate_ = -1;
+            process_rate_ = -1;
+            if (dnb_matrix.pmatrix != nullptr) {
+                free(dnb_matrix.pmatrix);
+                dnb_matrix.pmatrix = nullptr;
+                if (m_bexon) {
+                    free(dnb_matrix.pexon32);
+                    dnb_matrix.pexon32 = nullptr;
+                }
+            }
+            return -1;
+        }
+
+        if (dnb_matrix.pmatrix != nullptr) {
+            free(dnb_matrix.pmatrix);
+            dnb_matrix.pmatrix = nullptr;
+            if (m_bexon) {
+                free(dnb_matrix.pexon32);
+                dnb_matrix.pexon32 = nullptr;
+            }
+        }
+    }
+
+    bgef_writer.CopyProfileInfo2WholeGef(BgefOptions::GetInstance()->input_file_.c_str(), "contour");
+    return 0;
 }
 
 void cellAdjust::readCgef(const string &strinput) {
@@ -594,11 +876,17 @@ void cellAdjust::writeGene() {
             cell_count = itor->second.size();
             gene_data_list[i].cell_count = cell_count;
             gene_data_list[i].exp_count = exp_count;
+            if (cgef_version_ > GeneNameVersion) {
+                memcpy(gene_data_list[i].gene_name_id, m_vecgeneidname[i].c_str(), 64);
+            }
             memcpy(gene_data_list[i].gene_name, strgene.c_str(), strgene.length());
             gene_data_list[i].max_mid_count = max_MID_count;
             gene_data_list[i].offset = offset;
             offset += cell_count;
         } else {
+            if (cgef_version_ > GeneNameVersion) {
+                memcpy(gene_data_list[i].gene_name_id, m_vecgeneidname[i].c_str(), 64);
+            }
             memcpy(gene_data_list[i].gene_name, strgene.c_str(), strgene.length());
             gene_data_list[i].cell_count = 0;
             gene_data_list[i].exp_count = 0;
@@ -632,7 +920,8 @@ void cellAdjust::writeCellAdjust(const string &outpath, const string &outline_pa
     }
     m_cgefwPtr = new CgefWriter();
     m_cgefwPtr->setOutput(outpath);
-    CellBinAttr cell_bin_attr = {/*.version = */ 2,
+    m_cgefwPtr->setGefVersion(m_bgefopts->bgef_version);
+    CellBinAttr cell_bin_attr = {/*.version = */ m_bgefopts->bgef_version,
                                  /*.resolution = */ m_resolution,
                                  /*.offsetX = */ m_min_x,
                                  /*.offsetY = */ m_min_y};
@@ -648,8 +937,12 @@ herr_t file_info(hid_t loc_id, const char *name, const H5L_info_t *linfo, void *
     return 0;
 }
 
+
+/////////////////////////////////////////////////////////2 bgef lasso///////////////////////////////////////////////////////////////
 void cellAdjust::createRegionGef(const string &out) {
     timer st(__FUNCTION__);
+    BgefOptions::GetInstance()->output_file_ = out;
+
     hid_t gid = H5Gopen(m_bgeffile_id, "/geneExp", H5P_DEFAULT);
     if (gid < 0) {
         std::cout << "can not find input spatial bin gef file... " << std::endl;
@@ -658,199 +951,14 @@ void cellAdjust::createRegionGef(const string &out) {
     std::vector<std::string> group_names;
     herr_t idx = H5Literate(gid, H5_INDEX_NAME, H5_ITER_INC, NULL, file_info, &group_names);
     H5Gclose(gid);
+    H5Fclose(m_bgeffile_id);
 
     m_bgefopts->bin_sizes_.clear();
     for (string &str : group_names) {
         int bin = std::stoi(str.substr(3));
         m_bgefopts->bin_sizes_.push_back(bin);
     }
-
-    if (m_bgefopts->map_gene_exp_.size() == 0) {
-        log_error << "region has no information. please check. ";
-        return;
-    }
-
-    m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
-    ThreadPool thpool(m_bgefopts->thread_ * 2);
-
-    m_bgefopts->m_stromics.append(m_szomics);
-    BgefWriter bgef_writer(out, false, m_bexon, m_bgefopts->m_stromics);
-    bgef_writer.setResolution(m_resolution);
-
-    int genecnt = 0;
-    for (unsigned int bin : m_bgefopts->bin_sizes_) {
-        auto &dnb_matrix = m_bgefopts->dnbmatrix_;
-        auto &dnbAttr = m_bgefopts->dnbmatrix_.dnb_attr;
-
-        dnbAttr.min_x = (m_min_x / bin) * bin;
-        dnbAttr.len_x = (m_maxx) / bin + 1;
-        dnbAttr.min_y = (m_min_y / bin) * bin;
-        dnbAttr.len_y = (m_maxy) / bin + 1;
-
-        dnbAttr.max_x = (m_maxx / bin) * bin;
-        dnbAttr.max_y = (m_maxy / bin) * bin;
-
-        dnbAttr.max_gene = 0;
-        dnbAttr.max_mid = 0;
-        dnbAttr.number = 0;
-        unsigned long matrix_len = (unsigned long)(dnbAttr.len_x) * dnbAttr.len_y;
-
-        log_info << "bin " << bin << " matrix: min_x=" << dnbAttr.min_x << " len_x=" << dnbAttr.len_x
-                 << " min_y=" << dnbAttr.min_y << " len_y=" << dnbAttr.len_y << " matrix_len=" << matrix_len;
-
-        if (bin == 1) {
-            dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
-            assert(dnb_matrix.pmatrix_us);
-            if (!dnb_matrix.pmatrix_us) {
-                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                return;
-            }
-            if (m_bexon) {
-                dnb_matrix.pexon16 = (unsigned short *)calloc(matrix_len, 2);
-                assert(dnb_matrix.pexon16);
-                if (!dnb_matrix.pexon16) {
-                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                    return;
-                }
-            }
-        } else {
-            dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
-            assert(dnb_matrix.pmatrix);
-            if (!dnb_matrix.pmatrix) {
-                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                return;
-            }
-            if (m_bexon) {
-                dnb_matrix.pexon32 = (unsigned int *)calloc(matrix_len, 4);
-                assert(dnb_matrix.pexon32);
-                if (!dnb_matrix.pexon32) {
-                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                    return;
-                }
-            }
-        }
-
-        for (int i = 0; i < m_bgefopts->thread_; i++) {
-            auto *task = new DnbMergeTask(m_bgefopts->map_gene_exp_.size(), i, bin);
-            thpool.addTask(task);
-        }
-
-        auto itor = m_bgefopts->map_gene_exp_.begin();
-        for (; itor != m_bgefopts->map_gene_exp_.end(); itor++) {
-            auto *task = new BinTask(bin, itor->first.c_str());
-            thpool.addTask(task);
-        }
-
-        unsigned int offset = 0;
-        unsigned int maxexp = 0;
-        unsigned int maxexon = 0;
-        genecnt = 0;
-        map<string, vector<Expression>> gene_info;
-        while (true) {
-            GeneInfo *pgeneinfo = m_bgefopts->m_geneinfo_queue.getPtr();
-            gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
-
-            maxexp = std::max(maxexp, pgeneinfo->maxexp);
-            maxexon = std::max(maxexon, pgeneinfo->maxexon);
-
-            if (bin == 100) {
-                m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid, pgeneinfo->umicnt, pgeneinfo->e10);
-            }
-
-            delete pgeneinfo;
-            genecnt++;
-            if (genecnt == m_bgefopts->map_gene_exp_.size()) {
-                break;
-            }
-        }
-
-        for (auto itor : gene_info) {
-            if (bin == 1) {
-                m_bgefopts->expressions_.insert(m_bgefopts->expressions_.end(), itor.second.begin(), itor.second.end());
-            } else {
-                for (auto g : itor.second) {
-                    g.x *= bin;
-                    g.y *= bin;
-                    m_bgefopts->expressions_.push_back(std::move(g));
-                }
-            }
-
-            m_bgefopts->genes_.emplace_back(itor.first.c_str(), offset, static_cast<unsigned int>(itor.second.size()));
-            offset += itor.second.size();
-        }
-
-        bgef_writer.storeGene(m_bgefopts->expressions_, m_bgefopts->genes_, dnb_matrix.dnb_attr, maxexp, bin);
-        bgef_writer.storeGeneExon(m_bgefopts->expressions_, maxexon, bin);
-        m_bgefopts->expressions_.clear();
-        m_bgefopts->genes_.clear();
-
-        thpool.waitTaskDone();
-        m_bgefopts->m_genes_queue.clear(bin);
-
-        // write dnb
-        if (bin == 100) {
-            vector<GeneStat> &geneStat = m_bgefopts->m_vec_bin100;
-            std::sort(geneStat.begin(), geneStat.end(), [](const GeneStat &p1, const GeneStat &p2) {
-                if (p1.mid_count > p2.mid_count) {
-                    return true;
-                } else if (p1.mid_count == p2.mid_count) {
-                    int ret = strcmp(p1.gene, p2.gene);
-                    return ret < 0;
-                } else {
-                    return false;
-                }
-            });
-            bgef_writer.storeStat(geneStat);
-        }
-
-        vector<unsigned int> vec_mid;
-        unsigned long number = 0;
-
-        if (bin == 1) {
-            for (unsigned long i = 0; i < matrix_len; i++) {
-                if (dnb_matrix.pmatrix_us[i].gene_count) {
-                    ++number;
-                    vec_mid.push_back(dnb_matrix.pmatrix_us[i].mid_count);
-                }
-            }
-        } else {
-            for (unsigned long i = 0; i < matrix_len; i++) {
-                if (dnb_matrix.pmatrix[i].gene_count) {
-                    ++number;
-                    vec_mid.push_back(dnb_matrix.pmatrix[i].mid_count);
-                }
-            }
-        }
-
-        int sz = vec_mid.size();
-        sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
-        int limit = sz * 0.999;
-        dnbAttr.max_mid = vec_mid[limit];
-
-        dnbAttr.number = number;
-        bgef_writer.storeDnb(dnb_matrix, bin);
-        bgef_writer.storeWholeExon(dnb_matrix, bin);
-
-        if (bin == 1) {
-            if (dnb_matrix.pmatrix_us != nullptr) {
-                free(dnb_matrix.pmatrix_us);
-                dnb_matrix.pmatrix_us = nullptr;
-                if (m_bexon) {
-                    free(dnb_matrix.pexon16);
-                    dnb_matrix.pexon16 = nullptr;
-                }
-            }
-        } else {
-            if (dnb_matrix.pmatrix != nullptr) {
-                free(dnb_matrix.pmatrix);
-                dnb_matrix.pmatrix = nullptr;
-                if (m_bexon) {
-                    free(dnb_matrix.pexon32);
-                    dnb_matrix.pexon32 = nullptr;
-                }
-            }
-        }
-    }
+    int ret = CompleteBgefFile();
 }
 
 void cellAdjust::getRegionGenedata(vector<vector<int>> &m_vecpos) {
@@ -918,7 +1026,8 @@ void cellAdjust::getRegionGenedata(vector<vector<int>> &m_vecpos) {
     m_bgefopts->genes_.reserve(m_bgefopts->map_gene_exp_.size());
 }
 
-//////////////////////////////cgef lasso////////////////////////////////////
+
+//////////////////////////////////////////////////////////3 cgef lasso/////////////////////////////////////////////////////////////
 void cellAdjust::getRegionCelldata(vector<vector<int>> &m_vecpos) {
     timer st(__FUNCTION__);
     int num = m_vecpos.size();
@@ -977,6 +1086,10 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     } else {
         strcpy(m_szomics, "Transcriptomics");
     }
+
+    hid_t version_attr = H5Aopen(file_id, "version", H5P_DEFAULT);
+    H5Aread(version_attr, H5T_NATIVE_UINT32, &cgef_version_);
+    H5Aclose(version_attr);
 
     uint32_t cellexpcnt = 0;
     // cell
@@ -1065,7 +1178,7 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     dataspace_id = H5Dget_space(gene_did);
     H5Sget_simple_extent_dims(dataspace_id, dims, nullptr);
     m_genencnt = dims[0];
-    memtype = getMemtypeOfGeneData();
+    memtype = getMemtypeOfGeneData(cgef_version_);
     m_genePtr = (GeneData *)malloc(dims[0] * sizeof(GeneData));
     H5Dread(gene_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
     H5Tclose(memtype);
@@ -1122,42 +1235,12 @@ void cellAdjust::readRawCgef(const string &strcgef) {
     H5Fclose(file_id);
 }
 
-void cellAdjust::clear() {
-    if (m_cell_arrayptr) {
-        free(m_cell_arrayptr);
-        m_cell_arrayptr = nullptr;
-    }
-
-    if (m_cellexpPtr) {
-        free(m_cellexpPtr);
-        m_cellexpPtr = nullptr;
-    }
-
-    if (m_olderCellExpPtr) {
-        free(m_olderCellExpPtr);
-        m_olderCellExpPtr = nullptr;
-    }
-
-    if (m_genePtr) {
-        free(m_genePtr);
-        m_genePtr = nullptr;
-    }
-
-    if (m_cellexonPtr) {
-        free(m_cellexonPtr);
-        m_cellexonPtr = nullptr;
-    }
-
-    if (m_cellexonexpPtr) {
-        free(m_cellexonexpPtr);
-        m_cellexonexpPtr = nullptr;
-    }
-}
-
 void cellAdjust::writeToCgef(const string &outpath) {
     m_cgefwPtr = new CgefWriter();
     m_cgefwPtr->setOutput(outpath);
-    CellBinAttr cell_bin_attr = {/*.version = */ 2,
+    m_cgefwPtr->setGefVersion(cgef_version_);
+
+    CellBinAttr cell_bin_attr = {/*.version = */ cgef_version_,
                                  /*.resolution = */ m_resolution,
                                  /*.offsetX = */ m_offsetX,
                                  /* .offsetY = */ m_offsetY, m_szomics};
@@ -1382,6 +1465,9 @@ void cellAdjust::writeGeneToCgef() {
     int i = 0;
     auto itor = m_map_genedata.begin();
     for (; itor != m_map_genedata.end(); itor++, i++) {
+        if (cgef_version_ > GeneNameVersion) {
+            memcpy(gene_data_list[i].gene_name_id, m_genePtr[itor->first].gene_name_id, 64);
+        }
         memcpy(gene_data_list[i].gene_name, m_genePtr[itor->first].gene_name, 64);
 
         uint16_t maxmid = 0;
@@ -1421,7 +1507,9 @@ void cellAdjust::writeGeneToCgef() {
     free(gene_exon_ptr);
 }
 
-//////////////////////////////////sap////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////4 sap && stereomap lasso//////////////////////////////////////////////////////////////////////////
+// only need wholeExp dataset
 void cellAdjust::getSapRegion(const string &strinput, int bin, int thcnt, vector<vector<int>> &vecpos,
                               vector<sapBgefData> &vecdata, float &region_area) {
     timer st(__FUNCTION__);
@@ -1626,7 +1714,6 @@ void cellAdjust::getSapCellbinRegion(sapCgefData &vecdata) {
     std::cout << "cell count is : " << m_cellcnt << std::endl;
     for (uint32_t i = 0; i < m_cellcnt; i++) {
         if (multilabel_img.at<uchar>((m_cell_arrayptr[i].y - cellbin_miny), (m_cell_arrayptr[i].x - cellbin_minx))) {
-            std::cout << "i is : " << i << std::endl;
             vec_cid.push_back(i);
         }
     }
@@ -1723,82 +1810,21 @@ void cellAdjust::getSapCellbinRegion(sapCgefData &vecdata) {
     vecdata.average_area = (static_cast<float>(area_sum_) / static_cast<float>(newcid)) * pixel_ratio;
 }
 
+// get lasso data sort by mid
 void cellAdjust::getMultiLabelInfoFromBgef(const string &strinput, vector<vector<int>> &vecpos,
                                            vector<LabelGeneData> &vecdata, uint32_t &total_mid, int bin, int thcnt) {
     timer st(__FUNCTION__);
-    hid_t m_bgeffile_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (m_bgeffile_id < 0) {
-        std::cout << "can't open spatial bin gef file. "
-                  << "\n";
-        return;
-    }
-
-    // get gene info
-    hsize_t dims[1];
-    char dataName[32] = {0};
-    sprintf(dataName, "/geneExp/bin%d/gene", bin);
-    hid_t gene_did = H5Dopen(m_bgeffile_id, dataName, H5P_DEFAULT);
-    if (m_bgeffile_id < 0) {
-        std::cout << "can't open " << dataName << "dataset. "
-                  << "\n";
-        return;
-    }
-    hid_t gene_sid = H5Dget_space(gene_did);
-    H5Sget_simple_extent_dims(gene_sid, dims, nullptr);
-
-    uint32_t gene_cnt = dims[0];
-    Gene *genePtr = (Gene *)malloc(dims[0] * sizeof(Gene));
-
-    hid_t genememtype, strtype;
-    strtype = H5Tcopy(H5T_C_S1);
-    H5Tset_size(strtype, 64);
-
-    genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
-    H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
-    H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
-    H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, genePtr);
-    H5Tclose(genememtype);
-    H5Sclose(gene_sid);
-    H5Dclose(gene_did);
-
-    // get expression info
-    hsize_t exp_dims[1];
-    char exp_name[32] = {0};
-    sprintf(exp_name, "/geneExp/bin%d/expression", bin);
-    hid_t exp_did = H5Dopen(m_bgeffile_id, exp_name, H5P_DEFAULT);
-    hid_t exp_sid = H5Dget_space(exp_did);
-    H5Sget_simple_extent_dims(exp_sid, exp_dims, nullptr);
-
-    uint64_t geneexp_cnt = exp_dims[0];
-    std::cout << "exp count : " << exp_dims[0] << std::endl;
-    hid_t memtype;
-    memtype = H5Tcreate(H5T_COMPOUND, sizeof(Expression));
-    H5Tinsert(memtype, "x", HOFFSET(Expression, x), H5T_NATIVE_UINT);
-    H5Tinsert(memtype, "y", HOFFSET(Expression, y), H5T_NATIVE_UINT);
-    H5Tinsert(memtype, "count", HOFFSET(Expression, count), H5T_NATIVE_UINT);
-
-    Expression *expPtr = (Expression *)calloc(exp_dims[0], sizeof(Expression));
-    H5Dread(exp_did, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, expPtr);
-
-    // get attribution
-    hid_t attr = H5Aopen(exp_did, "minX", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_UINT, &m_min_x);
-    attr = H5Aopen(exp_did, "minY", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_UINT, &m_min_y);
-    attr = H5Aopen(exp_did, "maxX", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_UINT, &m_max_x);
-    attr = H5Aopen(exp_did, "maxY", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
-    attr = H5Aopen(exp_did, "resolution", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_UINT, &m_resolution);
+    BgefReader bgef_reader(strinput, bin);
+    Gene *genePtr = bgef_reader.getGene();
+    Expression *expPtr = bgef_reader.getExpression();
+    ExpressionAttr expression_attr = bgef_reader.getExpressionAttr();
+    m_min_x = expression_attr.min_x;
+    m_min_y = expression_attr.min_y;
+    m_max_x = expression_attr.max_x;
+    m_max_y = expression_attr.max_y;
+    m_resolution = expression_attr.resolution;
+    uint32_t gene_cnt = bgef_reader.getGeneNum();
     std::cout << "minx:" << m_min_x << "miny:" << m_min_y << "maxx:" << m_max_x << "maxy:" << m_max_y << '\n';
-
-    H5Aclose(attr);
-    H5Tclose(memtype);
-    H5Sclose(exp_sid);
-    H5Dclose(exp_did);
-    H5Tclose(strtype);
 
     cv::Mat fill_points;
     {
@@ -1840,8 +1866,8 @@ void cellAdjust::getMultiLabelInfoFromBgef(const string &strinput, vector<vector
         std::cout << "sort... " << std::endl;
     }
 
-    free(genePtr);
-    free(expPtr);
+    // free(genePtr);
+    // free(expPtr);
 }
 
 void cellAdjust::getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<int>> &vecpos,
@@ -1971,6 +1997,8 @@ void cellAdjust::getMultiLabelInfoFromCgef(const string &strcgef, vector<vector<
     });
 }
 
+
+// only need h5ad file
 void cellAdjust::GetPositionIndexByClusterId(const char *input_file, std::vector<int> cls_id,
                                              std::vector<std::vector<int>> &clusterpos_list) {
     timer st(__FUNCTION__);
@@ -2035,6 +2063,8 @@ void cellAdjust::GetPositionIndexByClusterId(const char *input_file, std::vector
     clusterpos_list.push_back(y_cod);
 }
 
+
+// filter gene by midcount, and generate complete bgef file 
 int cellAdjust::GenerateFilterBgefFileByMidCount(const std::string input_file, const std::string output_file,
                                                  int bin_size, std::vector<MidCntFilter> filter_genes,
                                                  bool only_filter) {
@@ -2300,217 +2330,22 @@ void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes
     H5Aread(attr, H5T_NATIVE_UINT, &m_max_y);
     attr = H5Aopen(exp_did, "resolution", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_UINT, &m_resolution);
+
+    m_maxx = m_max_x;
+    m_maxy = m_max_y;
     log_info << util::Format("minx:{0} miny:{1} maxx:{2} maxy:{3}", m_min_x, m_min_y, m_max_x, m_max_y);
     H5Aclose(attr);
     H5Dclose(exp_did);
     H5Fclose(file_id);
 
-    m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
-    ThreadPool thpool(m_bgefopts->thread_ * 2);
-    m_bgefopts->m_stromics.append(m_szomics);
-    log_info << "thread count is : " << m_bgefopts->thread_;
-
-    BgefWriter bgef_writer(BgefOptions::GetInstance()->output_file_, false, m_bexon, m_bgefopts->m_stromics);
-    bgef_writer.setResolution(m_resolution);
-    // bgef_writer.SetGefArea(gef_area);
-
-    // do bin , write to bgef file
-    int genecnt = 0;
-    for (unsigned int bin : m_bgefopts->bin_sizes_) {
-        timer st("Do bin... ");
-        auto &dnb_matrix = m_bgefopts->dnbmatrix_;
-        auto &dnbAttr = m_bgefopts->dnbmatrix_.dnb_attr;
-
-        dnbAttr.min_x = (m_min_x / bin) * bin;
-        dnbAttr.len_x = (m_max_x) / bin + 1;
-        dnbAttr.min_y = (m_min_y / bin) * bin;
-        dnbAttr.len_y = (m_max_y) / bin + 1;
-
-        dnbAttr.max_x = (m_max_x / bin) * bin;
-        dnbAttr.max_y = (m_max_y / bin) * bin;
-
-        dnbAttr.max_gene = 0;
-        dnbAttr.max_mid = 0;
-        dnbAttr.number = 0;
-        unsigned long matrix_len = (unsigned long)(dnbAttr.len_x) * dnbAttr.len_y;
-
-        log_info << "bin " << bin << " matrix: min_x=" << dnbAttr.min_x << " len_x=" << dnbAttr.len_x
-                 << " min_y=" << dnbAttr.min_y << " len_y=" << dnbAttr.len_y << " matrix_len=" << matrix_len;
-
-        if (bin == 1) {
-            dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
-            assert(dnb_matrix.pmatrix_us);
-            if (!dnb_matrix.pmatrix_us) {
-                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                process_rate_ = -1;
-                return;
-            }
-            if (m_bexon) {
-                dnb_matrix.pexon16 = (unsigned short *)calloc(matrix_len, 2);
-                assert(dnb_matrix.pexon16);
-                if (!dnb_matrix.pexon16) {
-                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                    process_rate_ = -1;
-                    return;
-                }
-            }
-        } else {
-            dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
-            assert(dnb_matrix.pmatrix);
-            if (!dnb_matrix.pmatrix) {
-                log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                process_rate_ = -1;
-                return;
-            }
-            if (m_bexon) {
-                dnb_matrix.pexon32 = (unsigned int *)calloc(matrix_len, 4);
-                assert(dnb_matrix.pexon32);
-                if (!dnb_matrix.pexon32) {
-                    log_error << errorCode::E_ALLOCMEMORYFAILED << "can not alloc memory for wholeExp matrix. ";
-                    process_rate_ = -1;
-                    return;
-                }
-            }
-        }
-
-        process_rate_ = 2;
-
-        for (int i = 0; i < m_bgefopts->thread_; i++) {
-            auto *task = new DnbMergeTask(m_bgefopts->map_gene_exp_.size(), i, bin);
-            thpool.addTask(task);
-        }
-
-        auto itor = m_bgefopts->map_gene_exp_.begin();
-        for (; itor != m_bgefopts->map_gene_exp_.end(); itor++) {
-            auto *task = new BinTask(bin, itor->first.c_str());
-            thpool.addTask(task);
-        }
-
-        unsigned int offset = 0;
-        unsigned int maxexp = 0;
-        unsigned int maxexon = 0;
-        genecnt = 0;
-        map<string, vector<Expression>> gene_info;
-        while (true) {
-            GeneInfo *pgeneinfo = m_bgefopts->m_geneinfo_queue.getPtr();
-            if (1 != bin) {
-                gene_info.insert(map<string, vector<Expression>>::value_type(pgeneinfo->geneid, *pgeneinfo->vecptr));
-            }
-
-            maxexp = std::max(maxexp, pgeneinfo->maxexp);
-            maxexon = std::max(maxexon, pgeneinfo->maxexon);
-
-            if (bin == 100) {
-                m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid, pgeneinfo->umicnt, pgeneinfo->e10);
-            }
-
-            delete pgeneinfo;
-            genecnt++;
-            if (genecnt == m_bgefopts->map_gene_exp_.size()) {
-                break;
-            }
-        }
-
-        if (bin == 1) {
-            for (auto itor : m_bgefopts->map_gene_exp_) {
-                m_bgefopts->expressions_.insert(m_bgefopts->expressions_.end(), itor.second.begin(), itor.second.end());
-                m_bgefopts->genes_.emplace_back(itor.first.c_str(), offset,
-                                                static_cast<unsigned int>(itor.second.size()));
-                offset += itor.second.size();
-            }
-        } else {
-            for (auto itor : gene_info) {
-                for (auto g : itor.second) {
-                    g.x *= bin;
-                    g.y *= bin;
-                    m_bgefopts->expressions_.push_back(std::move(g));
-                }
-
-                m_bgefopts->genes_.emplace_back(itor.first.c_str(), offset,
-                                                static_cast<unsigned int>(itor.second.size()));
-                offset += itor.second.size();
-            }
-        }
-
-        log_info << "after filter size is : " << m_bgefopts->expressions_.size();
-        bgef_writer.storeGene(m_bgefopts->expressions_, m_bgefopts->genes_, dnb_matrix.dnb_attr, maxexp, bin);
-        bgef_writer.storeGeneExon(m_bgefopts->expressions_, maxexon, bin);
-        m_bgefopts->expressions_.clear();
-        m_bgefopts->genes_.clear();
-        std::vector<Expression>().swap(m_bgefopts->expressions_);
-        std::vector<Gene>().swap(m_bgefopts->genes_);
-
-        thpool.waitTaskDone();
-        m_bgefopts->m_genes_queue.clear(bin);
-
-        // write dnb
-        {
-            timer st("write dnb... ");
-
-            if (bin == 100) {
-                vector<GeneStat> &geneStat = m_bgefopts->m_vec_bin100;
-                std::sort(geneStat.begin(), geneStat.end(), [](const GeneStat &p1, const GeneStat &p2) {
-                    if (p1.mid_count > p2.mid_count) {
-                        return true;
-                    } else if (p1.mid_count == p2.mid_count) {
-                        int ret = strcmp(p1.gene, p2.gene);
-                        return ret < 0;
-                    } else {
-                        return false;
-                    }
-                });
-                bgef_writer.storeStat(geneStat);
-            }
-
-            vector<unsigned int> vec_mid;
-            unsigned long number = 0;
-
-            if (bin == 1) {
-                for (unsigned long i = 0; i < matrix_len; i++) {
-                    if (dnb_matrix.pmatrix_us[i].gene_count) {
-                        ++number;
-                        vec_mid.push_back(dnb_matrix.pmatrix_us[i].mid_count);
-                    }
-                }
-            } else {
-                for (unsigned long i = 0; i < matrix_len; i++) {
-                    if (dnb_matrix.pmatrix[i].gene_count) {
-                        ++number;
-                        vec_mid.push_back(dnb_matrix.pmatrix[i].mid_count);
-                    }
-                }
-            }
-
-            int sz = vec_mid.size();
-            sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
-            int limit = sz * 0.999;
-            dnbAttr.max_mid = vec_mid[limit];
-
-            dnbAttr.number = number;
-            bgef_writer.storeDnb(dnb_matrix, bin);
-            bgef_writer.storeWholeExon(dnb_matrix, bin);
-        }
-
-        if (bin == 1) {
-            if (dnb_matrix.pmatrix_us != nullptr) {
-                free(dnb_matrix.pmatrix_us);
-                dnb_matrix.pmatrix_us = nullptr;
-                if (m_bexon) {
-                    free(dnb_matrix.pexon16);
-                    dnb_matrix.pexon16 = nullptr;
-                }
-            }
-        } else {
-            if (dnb_matrix.pmatrix != nullptr) {
-                free(dnb_matrix.pmatrix);
-                dnb_matrix.pmatrix = nullptr;
-                if (m_bexon) {
-                    free(dnb_matrix.pexon32);
-                    dnb_matrix.pexon32 = nullptr;
-                }
-            }
-        }
+    process_rate_ = 2;
+    int ret = CompleteBgefFile();
+    if (ret < 0) {
+        process_rate_ = -1;
+        BgefOptions::GetInstance()->clear();
+        return;
     }
+
     process_rate_ = 3;
     BgefOptions::GetInstance()->clear();
     return;
@@ -2547,9 +2382,13 @@ int cellAdjust::GenerateLassoBgefDuration() {
     return lasso_bgef_rate_;
 }
 
+
+/////////////////////////////////////////////////////////5 stereopy exact point/////////////////////////////////////////////////////////////////////
 int cellAdjust::createRegionBgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos,
                                        int bin_size) {
     m_bgefopts = BgefOptions::GetInstance();
+    BgefOptions::GetInstance()->input_file_ = strinput;
+
     int num = m_vecpos.size();
     uint64_t l_id = 0;
     std::unordered_set<uint64_t> region_exp;

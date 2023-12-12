@@ -461,7 +461,9 @@ void CgefWriter::addDnbExp(vector<cv::Point> &dnb_coordinates,
     cell_num_ += 1;
 }
 
-void CgefWriter::storeAttr(CellBinAttr &cell_bin_attr) const {
+void CgefWriter::setGefVersion(int version) { gef_version_ = version; }
+
+void CgefWriter::storeAttr(CellBinAttr &cell_bin_attr) {
     unsigned long cprev = clock();
     hsize_t dimsAttr[1] = {1};
     hid_t attr;
@@ -538,12 +540,12 @@ void CgefWriter::createGenedata(const vector<string> &gene_name_list) {
             min_cell_count = min_cell_count < cell_count ? min_cell_count : cell_count;
             max_cell_count = max_cell_count > cell_count ? max_cell_count : cell_count;
 
-            gene_data_list[i] = GeneData(gene_name_list[i].c_str(), offset, static_cast<unsigned int>(tmp.size()),
+            gene_data_list[i] = GeneData(gene_name_list[i].c_str(), "", offset, static_cast<unsigned int>(tmp.size()),
                                          exp_count, max_MID_count);
 
             offset += tmp.size();
         } else {
-            gene_data_list[i] = GeneData(gene_name_list[i].c_str(), offset, 0, 0, 0);
+            gene_data_list[i] = GeneData(gene_name_list[i].c_str(), "", offset, 0, 0, 0);
         }
     }
     storeGeneAndGeneExp(min_exp_count, max_exp_count, min_cell_count, max_cell_count, gene_data_list, gene_exp_list);
@@ -603,13 +605,24 @@ void CgefWriter::storeGeneAndGeneExp(unsigned int min_exp_count, unsigned int ma
     // }
 
     hid_t memtype, filetype;
-    memtype = getMemtypeOfGeneData();
-    filetype = H5Tcreate(H5T_COMPOUND, 78);
-    H5Tinsert(filetype, "geneName", 0, str64_type_);
-    H5Tinsert(filetype, "offset", 64, H5T_STD_U32LE);
-    H5Tinsert(filetype, "cellCount", 68, H5T_STD_U32LE);
-    H5Tinsert(filetype, "expCount", 72, H5T_STD_U32LE);
-    H5Tinsert(filetype, "maxMIDcount", 76, H5T_STD_U16LE);
+    if (gef_version_ > GeneNameVersion) {
+        memtype = getMemtypeOfGeneData(gef_version_);
+        filetype = H5Tcreate(H5T_COMPOUND, 142);
+        H5Tinsert(filetype, "geneID", 0, str64_type_);
+        H5Tinsert(filetype, "geneName", 64, str64_type_);
+        H5Tinsert(filetype, "offset", 128, H5T_STD_U32LE);
+        H5Tinsert(filetype, "cellCount", 132, H5T_STD_U32LE);
+        H5Tinsert(filetype, "expCount", 136, H5T_STD_U32LE);
+        H5Tinsert(filetype, "maxMIDcount", 140, H5T_STD_U16LE);
+    } else {
+        memtype = getMemtypeOfGeneData(gef_version_);
+        filetype = H5Tcreate(H5T_COMPOUND, 78);
+        H5Tinsert(filetype, "geneName", 0, str64_type_);
+        H5Tinsert(filetype, "offset", 64, H5T_STD_U32LE);
+        H5Tinsert(filetype, "cellCount", 68, H5T_STD_U32LE);
+        H5Tinsert(filetype, "expCount", 72, H5T_STD_U32LE);
+        H5Tinsert(filetype, "maxMIDcount", 76, H5T_STD_U16LE);
+    }
 
     hid_t dataspace_id = H5Screate_simple(1, dims, nullptr);
     hid_t dataset_id = H5Dcreate(group_id_, "gene", filetype, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);

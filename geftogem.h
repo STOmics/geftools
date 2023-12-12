@@ -45,6 +45,8 @@ class GEFTOOLS_API geftogem {
     uint32_t m_cellcnt;
     int m_offsetX, m_offsetY;
     vector<string> m_vecgenename;
+    vector<string> m_vecgeneid;
+
     int m_min_x, m_min_y, m_max_x, m_max_y;
     uint32_t m_resolution;
     unordered_map<uint64_t, vector<Dnbs>> m_hash_vecdnb;
@@ -54,6 +56,8 @@ class GEFTOOLS_API geftogem {
     // Mat m_fill_points;
     unordered_map<uint32_t, cellmat> m_hash_cellpoint;
     std::string omics_type {""};
+
+    int gef_version_ {0};
 };
 
 #endif

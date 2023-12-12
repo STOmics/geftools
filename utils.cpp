@@ -269,27 +269,55 @@ unsigned int parseResolutin(const string &filename) {
 long tifread(cv::Mat &img, const string &strtif) {
     TIFF *tif = TIFFOpen(strtif.c_str(), "r");
     if (tif) {
-        uint32_t w, h, ch, ncn;
-        
+        uint32_t w, h, ch;
+        uint16_t ncn;
         size_t npixels;
+
         TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &w);
         TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &h);
         TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &ch);
-        log_info << "bit space sample is : " << ch;
-        TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &ncn);
-        log_info << "samples per pixel is : " << ncn; 
-        // int nf = TIFFNumberOfDirectories(tif);
-        // int k = TIFFScanlineSize(tif);
-        npixels = w * h;
-        img.create(h, w, CV_8UC1);
-        uchar *ptr = img.data;
-        for (int row = 0; row < h; row++) {
-            TIFFReadScanline(tif, ptr, row);
-            ptr += w;
+        if (8 == ch) {
+            npixels = w * h;
+            img.create(h, w, CV_8UC1);
+            uchar *ptr = img.data;
+            for (int row = 0; row < h; row++) {
+                TIFFReadScanline(tif, ptr, row);
+                ptr += w;
+            }
+        } else if (16 == ch) {
+            npixels = w * h;
+            cv::Mat tmp;
+            tmp.create(h, w, CV_16UC1);
+            uchar *ptr = tmp.data;
+            for (int row = 0; row < h; row++) {
+                TIFFReadScanline(tif, ptr, row);
+                ptr += w;
+            }
+            tmp.convertTo(img, CV_8UC1, 255.0 / 65535, 0.5);
         }
+        log_info << "bit space sample is : " << ch;
         TIFFClose(tif);
         printf("img row:%d col:%d\n", img.rows, img.cols);
         return npixels;
     }
     return 0;
+}
+
+bool ContainSubStr(const string &str, const string &sub_str) {
+    string::size_type idx = str.find(sub_str);
+    if (idx != string::npos) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void TrimStr(string &s) {
+    if (!s.empty()) {
+        for (auto iter = s.begin(); iter != s.end(); iter++) {
+            if (isspace(*iter) != 0) {
+                s.erase(iter--);
+            }
+        }
+    }
 }

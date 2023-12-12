@@ -38,6 +38,7 @@ class readCellgemTask : public ITask {
     unordered_map<int, cgef_cell *> m_map_cell;
     unordered_map<string, cgef_gene *> m_map_gene;  // 保存一个基因出现的细胞情况
     map<string, int> m_map_gene_id;
+    std::unordered_map<std::string, std::string> m_genename_map_per_t;
 
     static string m_leftstr;
     static mutex m_readmtx;   // 读文件锁
@@ -67,6 +68,9 @@ class readCellgemTask_cell : public readCellgemTask {
   private:
     int getdata();
     int getdata_exon();
+
+    int getdataWithGenename();
+    int getdataWithGenename_exon();
 
   private:
     bool m_bexon = false;

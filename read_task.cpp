@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 
 #include "bgef_options.h"
 
@@ -24,23 +25,28 @@ ReadTask::~ReadTask() { delete[] m_pbuf; }
 
 void ReadTask::doTask() {
     RLen rlen {0, 0};
-    if (m_bexon) {
-        while (true) {
-            readbuf(rlen);
-            getGeneInfo_exon();
-            if (rlen.reallen < rlen.readlen)  // file end
-            {
-                break;
-            }
+    std::function<int(ReadTask *)> parse;
+
+    if (BgefOptions::GetInstance()->has_gene_name) {
+        if (m_bexon) {
+            parse = &ReadTask::getGeneInfoWithGenename_exon;
+        } else {
+            parse = &ReadTask::getGeneInfoWithGenename;
         }
     } else {
-        while (true) {
-            readbuf(rlen);
-            getGeneInfo();
-            if (rlen.reallen < rlen.readlen)  // file end
-            {
-                break;
-            }
+        if (m_bexon) {
+            parse = &ReadTask::getGeneInfo_exon;
+        } else {
+            parse = &ReadTask::getGeneInfo;
+        }
+    }
+
+    while (true) {
+        readbuf(rlen);
+        parse(this);
+        if (rlen.reallen < rlen.readlen)  // file end
+        {
+            break;
         }
     }
 
@@ -146,6 +152,11 @@ int ReadTask::mergeGeneinfo() {
         std::vector<Expression> &vec = m_map_gene_exp[itor->first];
         vec.insert(vec.end(), itor->second.begin(), itor->second.end());
     }
+
+    if (BgefOptions::GetInstance()->has_gene_name) {
+        BgefOptions::GetInstance()->gene_name_map.insert(m_genename_map_per_t.begin(), m_genename_map_per_t.end());
+    }
+
     return 0;
 }
 
@@ -187,6 +198,113 @@ int ReadTask::getGeneInfo_exon() {
                     k = 0;
                     ptr = &m_pbuf[i + 1];
                     m_map_gege[geneid].push_back(expression);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    return m_map_gege.size();
+}
+
+int ReadTask::getGeneInfoWithGenename_exon() {
+    int i = 0, k = 0;
+    char *ptr = m_pbuf;
+    std::string geneid;
+    std::string genename;
+    Expression expression {0, 0, 0, 0};
+    for (; i < m_buflen; i++) {
+        if (m_pbuf[i] == ',' || m_pbuf[i] == ';' || m_pbuf[i] == '\t' || m_pbuf[i] == '\n') {
+            switch (k) {
+                case 0:
+                    geneid.clear();
+                    geneid.append(ptr, &m_pbuf[i] - ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 1:
+                    genename.clear();
+                    genename.append(ptr, &m_pbuf[i] - ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 2:
+                    expression.x = atoi(ptr);
+                    min_x = std::min(expression.x, min_x);
+                    max_x = std::max(expression.x, max_x);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 3:
+                    expression.y = atoi(ptr);
+                    min_y = std::min(expression.y, min_y);
+                    max_y = std::max(expression.y, max_y);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 4:
+                    expression.count = atoi(ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 5:
+                    expression.exon = atoi(ptr);
+                    k = 0;
+                    ptr = &m_pbuf[i + 1];
+                    m_map_gege[geneid].push_back(expression);
+                    m_genename_map_per_t[geneid] = genename;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    return m_map_gege.size();
+}
+
+int ReadTask::getGeneInfoWithGenename() {
+    int i = 0, k = 0;
+    char *ptr = m_pbuf;
+    std::string geneid;
+    std::string genename;
+    Expression expression {0, 0, 0, 0};
+    for (; i < m_buflen; i++) {
+        if (m_pbuf[i] == ',' || m_pbuf[i] == ';' || m_pbuf[i] == '\t' || m_pbuf[i] == '\n') {
+            switch (k) {
+                case 0:
+                    geneid.clear();
+                    geneid.append(ptr, &m_pbuf[i] - ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 1:
+                    genename.clear();
+                    genename.append(ptr, &m_pbuf[i] - ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 2:
+                    expression.x = atoi(ptr);
+                    min_x = std::min(expression.x, min_x);
+                    max_x = std::max(expression.x, max_x);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 3:
+                    expression.y = atoi(ptr);
+                    min_y = std::min(expression.y, min_y);
+                    max_y = std::max(expression.y, max_y);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 4:
+                    expression.count = atoi(ptr);
+                    k = 0;
+                    ptr = &m_pbuf[i + 1];
+                    m_map_gege[geneid].push_back(expression);
+                    m_genename_map_per_t[geneid] = genename;
                     break;
                 default:
                     break;

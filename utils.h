@@ -32,8 +32,9 @@ using namespace std;
 // using namespace cv;
 
 const int READLEN = 256 * 1024;
-const unsigned int GEFVERSION[3] = {0, 8, 10};
+const unsigned int GEFVERSION[3] = {1, 0, 0};
 const int BORDERCNT = 32;
+static constexpr const int GeneNameVersion = 3;
 
 namespace errorCode {
     extern bool isInSAWFlow;
@@ -232,4 +233,7 @@ bool Rectequal_to(const cv::Rect& a, const cv::Rect& b);
 unsigned int parseResolutin(const string& filename);
 
 long tifread(cv::Mat& img, const string& strtif);
+
+bool ContainSubStr(const string& str, const string& sub_str);
+void TrimStr(string& s);
 #endif  // GEFTOOLS__UTILS_H_

@@ -224,6 +224,7 @@ class GEFTOOLS_API BgefReader {
                           vector<string> genelist);
     uint32_t getGeneDnbNum();
     levelgenednb *getGeneDnbData();
+    int getGeneId2GeneNameMap(unordered_map<string, string> &gene_name_map);
 };
 
 #endif  // GEFTOOLS__COMMON_BIN_H_

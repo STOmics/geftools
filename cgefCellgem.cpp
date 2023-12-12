@@ -53,27 +53,54 @@ void cgefCellgem::cgem2cgef(CgefWriter *cwptr, const string &strin) {
     cgefParam::GetInstance()->m_infile = gzopen(strin.c_str(), "r");
     gzbuffer(cgefParam::GetInstance()->m_infile, READLEN);
 
-    char buf[128] = {0};
-    while (1) {
-        gzgets(cgefParam::GetInstance()->m_infile, buf, 128);
-        if (memcmp(buf, "geneID", 6) == 0) {
-            break;
+    std::string line;
+    while (readline(cgefParam::GetInstance()->m_infile, line)) {
+        if (line[0] == '#') {
+            if (line.substr(0, 12) == "#FileFormat=") {
+                TrimStr(line);
+                string ver = line.substr(line.length() - 1);
+                int gem_ver = std::stoi(ver);
+                if (gem_ver > 1) {
+                    cgefParam::GetInstance()->has_gene_name = true;
+                    cgefParam::GetInstance()->gef_version = 4;
+                } else {
+                    cgefParam::GetInstance()->gef_version = 2;
+                }
+            }
+            continue;
         }
+        if (ContainSubStr(line, "geneID")) break;
     }
 
-    int col = 1;
-    int i = 0;
-    while (buf[i] != 0) {
-        if (buf[i] == '\t') {
-            col++;
-        }
-        i++;
-    }
-    printf("%s %d\n", buf, col);
-
-    if (col == 6) {
+    if (ContainSubStr(line, "Exon")) {
         m_bexon = true;
     }
+    // char buf[128] = {0};
+    // while (1) {
+    //     gzgets(cgefParam::GetInstance()->m_infile, buf, 128);
+    //     if (memcmp(buf, "geneID", 6) == 0) {
+    //         break;
+    //     }
+    // }
+
+    int col = 1;
+    for (char ch : line) {
+        if (ch == '\t') {
+            col++;
+        }
+    }
+    // int i = 0;
+    // while (buf[i] != 0) {
+    //     if (buf[i] == '\t') {
+    //         col++;
+    //     }
+    //     i++;
+    // }
+    printf("%s %d\n", line.c_str(), col);
+
+    // if (col == 6) {
+    //     m_bexon = true;
+    // }
 
     for (int i = 0; i < cgefParam::GetInstance()->m_threadcnt; i++) {
         readCellgemTask *rtask = new readCellgemTask_cell(m_bexon);
@@ -82,6 +109,7 @@ void cgefCellgem::cgem2cgef(CgefWriter *cwptr, const string &strin) {
     m_thpoolPtr->waitTaskDone();
     gzclose(cgefParam::GetInstance()->m_infile);
 
+    m_cgefwPtr->setGefVersion(cgefParam::GetInstance()->gef_version);
     getCelldata_cgem();
     writeCell_cgem();
     writeGene_cgem();
@@ -95,7 +123,9 @@ void cgefCellgem::writeFile(CgefWriter *cwptr, const string &strmask, const stri
         case INPUTTYPE_BGEF_MASK:
             readBgef_new(strinput);
             readmask_new(strmask);
+            m_cgefwPtr->setGefVersion(cgefParam::GetInstance()->gef_version);
             writeAttr();
+
             getCell();
             writeCell_new();
             writeGene_new();
@@ -107,7 +137,7 @@ void cgefCellgem::writeFile(CgefWriter *cwptr, const string &strmask, const stri
 }
 
 void cgefCellgem::writeAttr() {
-    CellBinAttr cell_bin_attr = {/*.version = */ 2,
+    CellBinAttr cell_bin_attr = {/*.version = */ cgefParam::GetInstance()->gef_version,
                                  /*.resolution = */ cgefParam::GetInstance()->m_resolution,
                                  /*.offsetX = */ cgefParam::GetInstance()->m_min_x,
                                  /*.offsetY = */ cgefParam::GetInstance()->m_min_y,
@@ -340,6 +370,10 @@ void cgefCellgem::writeGene_cgem() {
         cell_count = tvec.size();
         gene_data_list[i].cell_count = cell_count;
         gene_data_list[i].exp_count = umisum;
+        if (cgefParam::GetInstance()->has_gene_name) {
+            memcpy(gene_data_list[i].gene_name_id, cgefParam::GetInstance()->cgem_genename_map[itor->first].c_str(),
+                   cgefParam::GetInstance()->cgem_genename_map[itor->first].length());
+        }
         memcpy(gene_data_list[i].gene_name, itor->first.c_str(), itor->first.length());
         gene_data_list[i].max_mid_count = max_MID_count;
         gene_data_list[i].offset = offset;
@@ -366,6 +400,14 @@ void cgefCellgem::writeGene_cgem() {
 void cgefCellgem::readBgef_new(const string &strinput) {
     timer st(__FUNCTION__);
     hid_t file_id = H5Fopen(strinput.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file_id < 0) {
+        log_info << "open bgef file failed. ";
+        return;
+    }
+    hid_t version_attr;
+    version_attr = H5Aopen(file_id, "version", H5P_DEFAULT);
+    H5Aread(version_attr, H5T_NATIVE_UINT, &cgefParam::GetInstance()->gef_version);
+    H5Aclose(version_attr);
 
     hsize_t dims[1];
     hid_t gene_did = H5Dopen(file_id, "/geneExp/bin1/gene", H5P_DEFAULT);
@@ -379,12 +421,23 @@ void cgefCellgem::readBgef_new(const string &strinput) {
     strtype = H5Tcopy(H5T_C_S1);
     H5Tset_size(strtype, 64);
 
-    genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
-    H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
-    H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
-    H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
-    H5Tclose(genememtype);
+    if (cgefParam::GetInstance()->gef_version > GeneNameVersion) {
+        genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(genememtype, "geneID", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(genememtype, "geneName", HOFFSET(Gene, gene_name), strtype);
+        H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+        H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
+        H5Tclose(genememtype);
+    } else {
+        genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(genememtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(genememtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+        H5Dread(gene_did, genememtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, m_genePtr);
+        H5Tclose(genememtype);
+    }
+
     H5Sclose(gene_sid);
     H5Dclose(gene_did);
 
@@ -684,7 +737,10 @@ void cgefCellgem::writeGene_new() {
             cellcnt = ptr->m_vec_cexp.size();
             expsum = ptr->m_expcnt;
             exonsum = ptr->m_exoncnt;
-            memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene, 32);
+            if (cgefParam::GetInstance()->gef_version > GeneNameVersion) {
+                memcpy(gene_data_list[i].gene_name_id, m_genePtr[i].gene_name, 64);
+            }
+            memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene, 64);
             gene_data_list[i].cell_count = cellcnt;
             gene_data_list[i].exp_count = expsum;
             gene_data_list[i].max_mid_count = ptr->m_maxmid;
@@ -700,7 +756,10 @@ void cgefCellgem::writeGene_new() {
             m_cgefwPtr->max_mid_count_ = std::max(m_cgefwPtr->max_mid_count_, ptr->m_maxmid);
             delete ptr;
         } else {
-            memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene, 32);
+            if (cgefParam::GetInstance()->gef_version > GeneNameVersion) {
+                memcpy(gene_data_list[i].gene_name_id, m_genePtr[i].gene_name, 64);
+            }
+            memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene, 64);
             gene_data_list[i].cell_count = 0;
             gene_data_list[i].exp_count = 0;
             gene_data_list[i].max_mid_count = 0;

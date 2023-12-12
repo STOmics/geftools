@@ -48,6 +48,7 @@ class GEFTOOLS_API cellAdjust {
 
     void readBgef(const string &strinput);
     void readCgef(const string &strinput);
+    int CompleteBgefFile();
 
     uint32_t getCellLabelgem(vector<string> &genename, vector<cellgem_label> &vecCellgem);
     void writeCellAdjust(const string &outpath, const string &outline_path, Cell *cellptr, int cellcnt,
@@ -103,13 +104,17 @@ class GEFTOOLS_API cellAdjust {
     int createRegionCgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos);
 
   private:
+    BgefOptions *m_bgefopts = nullptr;
+    
+    hid_t m_bgeffile_id = 0;
     bool m_bexon = false;
     uint32_t m_genencnt = 0;
     uint64_t m_geneexpcnt = 0;
     uint32_t m_cellcnt = 0;
     int m_offsetX = 0, m_offsetY = 0;
     vector<string> m_vecgenename;
-    int m_min_x = INT_MAX, m_min_y = INT_MAX, m_max_x = 0, m_max_y = 0;
+    vector<string> m_vecgeneidname;
+    int m_min_x = INT_MAX, m_min_y = INT_MAX, m_max_x = 0, m_max_y = 0;  // from /geneExp/bin1/
     uint32_t m_resolution = 0;
     unordered_map<uint64_t, vector<Dnbs_exon>> m_hash_vecdnb_exon;
     unordered_map<uint32_t, map<uint32_t, uint16_t>> m_hash_filter_cells;
@@ -119,11 +124,9 @@ class GEFTOOLS_API cellAdjust {
     CellData *m_cell_arrayptr = nullptr;
     CgefWriter *m_cgefwPtr = nullptr;
     map<uint32_t, vector<GeneExpData>> m_map_gene;
-    BgefOptions *m_bgefopts = nullptr;
 
     char m_szomics[32] = {0};
     int m_maxx = 0, m_maxy = 0;
-    hid_t m_bgeffile_id = 0;
     short *m_borderdataPtr = nullptr;
     vector<cellgem_label> m_vecCellgem;
     unordered_set<uint64_t> m_setcell;
@@ -153,6 +156,8 @@ class GEFTOOLS_API cellAdjust {
 
     std::thread lasso_bgef_thread_;
     int lasso_bgef_rate_ = 0;
+
+    int cgef_version_ = 0;
 };
 
 #endif

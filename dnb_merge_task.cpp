@@ -35,21 +35,21 @@ void DnbMergeTask::doTask_nor() {
 
         std::vector<Expression> &exp_vec = *(pgeneinfo->vecptr);
         unsigned long x, y, col;
-        if (m_binsize == 1) {
-            BinStatUS *pmatrix = opts_->dnbmatrix_.pmatrix_us;
-            for (auto exp : exp_vec) {
-                x = exp.x;
-                if (x >= m_x_low && x < m_x_high) {
-                    y = exp.y;
-                    col = x * y_len + y;
+        // if (m_binsize == 1) {
+        //     BinStatUS *pmatrix = opts_->dnbmatrix_.pmatrix_us;
+        //     for (auto exp : exp_vec) {
+        //         x = exp.x;
+        //         if (x >= m_x_low && x < m_x_high) {
+        //             y = exp.y;
+        //             col = x * y_len + y;
 
-                    // printf("x %d y %d ylen %d col %d\n", x, y, y_len, col);
-                    pmatrix[col].mid_count += exp.count;
-                    pmatrix[col].gene_count += 1;
-                    if (pmatrix[col].gene_count > maxGene) maxGene = pmatrix[col].gene_count;
-                }
-            }
-        } else {
+        //             // printf("x %d y %d ylen %d col %d\n", x, y, y_len, col);
+        //             pmatrix[col].mid_count += exp.count;
+        //             pmatrix[col].gene_count += 1;
+        //             if (pmatrix[col].gene_count > maxGene) maxGene = pmatrix[col].gene_count;
+        //         }
+        //     }
+        // } else {
             BinStat *pmatrix = opts_->dnbmatrix_.pmatrix;
             for (auto exp : exp_vec) {
                 x = exp.x;
@@ -61,7 +61,7 @@ void DnbMergeTask::doTask_nor() {
                     if (pmatrix[col].gene_count > maxGene) maxGene = pmatrix[col].gene_count;
                 }
             }
-        }
+        // }
     }
 
     lock_guard<mutex> lock(m_mutex);
@@ -82,25 +82,25 @@ void DnbMergeTask::doTask_Exon() {
 
         std::vector<Expression> &exp_vec = *(pgeneinfo->vecptr);
         unsigned long x, y, col;
-        if (m_binsize == 1) {
-            BinStatUS *pmatrix = opts_->dnbmatrix_.pmatrix_us;
-            unsigned short *exonptr = opts_->dnbmatrix_.pexon16;
-            for (auto exp : exp_vec) {
-                x = exp.x;
-                if (x >= m_x_low && x < m_x_high) {
-                    y = exp.y;
-                    col = x * y_len + y;
-                    // printf("x %d y %d ylen %d col %d\n", x, y, y_len, col);
-                    pmatrix[col].mid_count += exp.count;
-                    pmatrix[col].gene_count += 1;
-                    exonptr[col] += exp.exon;
-                    if (pmatrix[col].gene_count > maxGene) maxGene = pmatrix[col].gene_count;
-                    if (exonptr[col] > maxExon) {
-                        maxExon = exonptr[col];
-                    }
-                }
-            }
-        } else {
+        // if (m_binsize == 1) {
+        //     BinStatUS *pmatrix = opts_->dnbmatrix_.pmatrix_us;
+        //     unsigned short *exonptr = opts_->dnbmatrix_.pexon16;
+        //     for (auto exp : exp_vec) {
+        //         x = exp.x;
+        //         if (x >= m_x_low && x < m_x_high) {
+        //             y = exp.y;
+        //             col = x * y_len + y;
+        //             // printf("x %d y %d ylen %d col %d\n", x, y, y_len, col);
+        //             pmatrix[col].mid_count += exp.count;
+        //             pmatrix[col].gene_count += 1;
+        //             exonptr[col] += exp.exon;
+        //             if (pmatrix[col].gene_count > maxGene) maxGene = pmatrix[col].gene_count;
+        //             if (exonptr[col] > maxExon) {
+        //                 maxExon = exonptr[col];
+        //             }
+        //         }
+        //     }
+        // } else {
             BinStat *pmatrix = opts_->dnbmatrix_.pmatrix;
             unsigned int *exonptr = opts_->dnbmatrix_.pexon32;
             for (auto exp : exp_vec) {
@@ -117,7 +117,7 @@ void DnbMergeTask::doTask_Exon() {
                     }
                 }
             }
-        }
+        // }
     }
 
     lock_guard<mutex> lock(m_mutex);

@@ -497,16 +497,29 @@ Gene *BgefReader::getGene() {
 
     strtype = H5Tcopy(H5T_C_S1);
     H5Tset_size(strtype, 64);
+    if (version_ > GeneNameVersion) {
+        memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(memtype, "geneID", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(memtype, "geneName", HOFFSET(Gene, gene_name), strtype);
+        H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+    
+        genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
+        H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, genes_);
+        H5Tclose(strtype);
+        H5Tclose(memtype);
+    } else {
+        memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(memtype, "gene", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
 
-    memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
-    H5Tinsert(memtype, "gene", HOFFSET(Gene, gene), strtype);
-    H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
-    H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+        genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
+        H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, genes_);
+        H5Tclose(strtype);
+        H5Tclose(memtype);
+    }
 
-    genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
-    H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, genes_);
-    H5Tclose(strtype);
-    H5Tclose(memtype);
     return genes_;
 }
 
@@ -820,6 +833,18 @@ void BgefReader::getGeneExpression(unordered_map<string, vector<Expression>> &ge
     }
 }
 
+int BgefReader::getGeneId2GeneNameMap(unordered_map<string, string> &gene_name_map) {
+    unsigned long cprev = clock();
+
+    Gene *gene = getGene();
+    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+        gene_name_map.insert(unordered_map<string, string>::value_type(gene[gene_id].gene, gene[gene_id].gene_name));
+    }
+
+    if (verbose_) printCpuTime(cprev, "getGeneId2GeneNameMap");
+    return 0;
+}
+
 void BgefReader::getGeneExpression(unordered_map<string, vector<Expression>> &gene_exp_map) {
     unsigned long cprev = clock();
 
@@ -832,8 +857,6 @@ void BgefReader::getGeneExpression(unordered_map<string, vector<Expression>> &ge
         unsigned int end = gene[gene_id].offset + gene[gene_id].count;
         for (unsigned int i = gene[gene_id].offset; i < end; i++) {
             exps.emplace_back(expression[i]);
-        }
-        if (version_ > GeneNameVersion) {
         }
 
         gene_exp_map.insert(unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
@@ -962,7 +985,7 @@ int BgefReader::generateGeneExp(int bin_size, int n_thread) {
         for (uint32_t j = 0; j < itor.second.size(); j++) {
             expressions_[(idx + j)] = itor.second[j];
         }
-        genes_[g_idx] = {itor.first.c_str(), idx, (uint32_t)itor.second.size()};
+        genes_[g_idx] = {itor.first.c_str(), "", idx, (uint32_t)itor.second.size()};
         idx += itor.second.size();
         g_idx++;
     }
@@ -984,12 +1007,12 @@ void BgefReader::generateWholeExp(int bin_size, int thread) {
     auto &dnb_matrix = opts_->dnbmatrix_;
 
     unsigned long matrix_len = (unsigned long)(dnb_attr.len_x) * dnb_attr.len_y;
-    if (bin_size == 1) {
-        dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
-        assert(dnb_matrix.pmatrix_us);
-    } else {
+    // if (bin_size == 1) {
+    //     dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
+    //     assert(dnb_matrix.pmatrix_us);
+    // } else {
         dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
-    }
+    // }
 
     for (int i = 0; i < n_thread_; i++) {
         auto *task = new DnbMergeTask(opts_->map_gene_exp_.size(), i, bin_size);

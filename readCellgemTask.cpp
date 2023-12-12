@@ -56,7 +56,7 @@ int readCellgemTask::cuttail(char *pbuf) {
             break;
         }
     }
-    pbuf[i] = '\0';
+    // pbuf[i] = '\0';
     m_buflen = i + 1;
     m_leftstr.append(&pbuf[m_buflen], READLEN - m_buflen);
     return 0;
@@ -97,6 +97,10 @@ int readCellgemTask::mergeinfo() {
         if (tmp_g_i.find(itor_g_i->first) == tmp_g_i.end()) {
             tmp_g_i.emplace(itor_g_i->first, 0);
         }
+    }
+
+    if (cgefParam::GetInstance()->has_gene_name) {
+        cgefParam::GetInstance()->cgem_genename_map.insert(m_genename_map_per_t.begin(), m_genename_map_per_t.end());
     }
 
     cgefParam::GetInstance()->m_min_x = std::min(cgefParam::GetInstance()->m_min_x, m_min_x);
@@ -150,15 +154,15 @@ int readCellgemTask_raw::getInfo() {
     int i = 0, k = 0;
     char *ptr = m_pbuf;
 
-    string gname;
+    string gid;
     int len = 0, x = 0, y = 0, umi = 0;
     for (; i < m_buflen; i++) {
         if (m_pbuf[i] == '\t' || m_pbuf[i] == '\n') {
             switch (k) {
                 case 0:
                     len = &m_pbuf[i] - ptr;
-                    gname.clear();
-                    gname.append(ptr, len);
+                    gid.clear();
+                    gid.append(ptr, len);
                     k++;
                     ptr = &m_pbuf[i + 1];
                     break;
@@ -179,11 +183,11 @@ int readCellgemTask_raw::getInfo() {
                 case 3:
                     k = 0;
                     ptr = &m_pbuf[i + 1];
-                    if (m_map_bgene.find(gname) == m_map_bgene.end()) {
+                    if (m_map_bgene.find(gid) == m_map_bgene.end()) {
                         bgef_gene *gptr = new bgef_gene();
-                        m_map_bgene.emplace(gname, gptr);
+                        m_map_bgene.emplace(gid, gptr);
                     }
-                    m_map_bgene[gname]->add(x, y, umi);
+                    m_map_bgene[gid]->add(x, y, umi);
                     break;
                 default:
                     break;
@@ -216,26 +220,37 @@ int readCellgemTask_raw::mergeinfo() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 int readCellgemTask_cell::getInfo() {
-    if (m_bexon) {
-        return getdata_exon();
+    std::function<int(readCellgemTask_cell *)> parse;
+
+    if (cgefParam::GetInstance()->has_gene_name) {
+        if (m_bexon) {
+            parse = &readCellgemTask_cell::getdataWithGenename_exon;
+        } else {
+            parse = &readCellgemTask_cell::getdataWithGenename;
+        }
     } else {
-        return getdata();
+        if (m_bexon) {
+            parse = &readCellgemTask_cell::getdata_exon;
+        } else {
+            parse = &readCellgemTask_cell::getdata;
+        }
     }
+    return parse(this);
 }
 
 int readCellgemTask_cell::getdata() {
     int i = 0, k = 0, celllabel = 0;
     char *ptr = m_pbuf;
 
-    string gname;
+    string gid;
     int len = 0, x = 0, y = 0, umi = 0, exon = 0;
     for (; i < m_buflen; i++) {
         if (m_pbuf[i] == ',' || m_pbuf[i] == ';' || m_pbuf[i] == '\t' || m_pbuf[i] == '\n') {
             switch (k) {
                 case 0:
                     len = &m_pbuf[i] - ptr;
-                    gname.clear();
-                    gname.append(ptr, len);
+                    gid.clear();
+                    gid.append(ptr, len);
                     k++;
                     ptr = &m_pbuf[i + 1];
                     break;
@@ -268,16 +283,16 @@ int readCellgemTask_cell::getdata() {
                             cgef_cell *cptr = new cgef_cell(celllabel);
                             m_map_cell.emplace(celllabel, cptr);
                         }
-                        m_map_cell[celllabel]->add(gname, umi, x, y);
+                        m_map_cell[celllabel]->add(gid, umi, x, y);
 
-                        // if(m_map_gene.find(gname) == m_map_gene.end())
+                        // if(m_map_gene.find(gid) == m_map_gene.end())
                         // {
                         //     cgef_gene *gptr = new cgef_gene();
-                        //     m_map_gene.emplace(gname, gptr);
+                        //     m_map_gene.emplace(gid, gptr);
                         // }
-                        // m_map_gene[gname]->add(celllabel, umi);
-                        if (m_map_gene_id.find(gname) == m_map_gene_id.end()) {
-                            m_map_gene_id.emplace(gname, 0);
+                        // m_map_gene[gid]->add(celllabel, umi);
+                        if (m_map_gene_id.find(gid) == m_map_gene_id.end()) {
+                            m_map_gene_id.emplace(gid, 0);
                         }
                     }
 
@@ -295,15 +310,15 @@ int readCellgemTask_cell::getdata_exon() {
     int i = 0, k = 0, celllabel = 0;
     char *ptr = m_pbuf;
 
-    string gname;
+    string gid;
     int len = 0, x = 0, y = 0, umi = 0, exon = 0;
     for (; i < m_buflen; i++) {
         if (m_pbuf[i] == ',' || m_pbuf[i] == ';' || m_pbuf[i] == '\t' || m_pbuf[i] == '\n') {
             switch (k) {
                 case 0:
                     len = &m_pbuf[i] - ptr;
-                    gname.clear();
-                    gname.append(ptr, len);
+                    gid.clear();
+                    gid.append(ptr, len);
                     k++;
                     ptr = &m_pbuf[i + 1];
                     break;
@@ -341,16 +356,167 @@ int readCellgemTask_cell::getdata_exon() {
                             cgef_cell *cptr = new cgef_cell(celllabel);
                             m_map_cell.emplace(celllabel, cptr);
                         }
-                        m_map_cell[celllabel]->add(gname, umi, x, y, exon);
+                        m_map_cell[celllabel]->add(gid, umi, x, y, exon);
 
-                        // if(m_map_gene.find(gname) == m_map_gene.end())
+                        // if(m_map_gene.find(gid) == m_map_gene.end())
                         // {
                         //     cgef_gene *gptr = new cgef_gene();
-                        //     m_map_gene.emplace(gname, gptr);
+                        //     m_map_gene.emplace(gid, gptr);
                         // }
-                        // m_map_gene[gname]->add(celllabel, umi, exon);
-                        if (m_map_gene_id.find(gname) == m_map_gene_id.end()) {
-                            m_map_gene_id.emplace(gname, 0);
+                        // m_map_gene[gid]->add(celllabel, umi, exon);
+                        if (m_map_gene_id.find(gid) == m_map_gene_id.end()) {
+                            m_map_gene_id.emplace(gid, 0);
+                        }
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    return m_map_cell.size();
+}
+
+int readCellgemTask_cell::getdataWithGenename() {
+    int i = 0, k = 0, celllabel = 0;
+    char *ptr = m_pbuf;
+
+    string gid;
+    string gname;
+    int len = 0, x = 0, y = 0, umi = 0, exon = 0;
+    for (; i < m_buflen; i++) {
+        if (m_pbuf[i] == ',' || m_pbuf[i] == ';' || m_pbuf[i] == '\t' || m_pbuf[i] == '\n') {
+            switch (k) {
+                case 0:
+                    len = &m_pbuf[i] - ptr;
+                    gid.clear();
+                    gid.append(ptr, len);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 1:
+                    len = &m_pbuf[i] - ptr;
+                    gname.clear();
+                    gname.append(ptr, len);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 2:
+                    x = atoi(ptr);
+                    m_min_x = std::min(m_min_x, x);
+                    m_max_x = std::max(m_max_x, x);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 3:
+                    y = atoi(ptr);
+                    m_min_y = std::min(m_min_y, y);
+                    m_max_y = std::max(m_max_y, y);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 4:
+                    umi = atoi(ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 5:
+                    k = 0;
+                    celllabel = atoi(ptr);
+                    ptr = &m_pbuf[i + 1];
+
+                    if (celllabel > 0) {
+                        if (m_map_cell.find(celllabel) == m_map_cell.end()) {
+                            cgef_cell *cptr = new cgef_cell(celllabel);
+                            m_map_cell.emplace(celllabel, cptr);
+                        }
+                        m_map_cell[celllabel]->add(gid, umi, x, y);
+
+                        if (m_map_gene_id.find(gid) == m_map_gene_id.end()) {
+                            m_map_gene_id.emplace(gid, 0);
+                        }
+                        if (m_genename_map_per_t.find(gid) == m_genename_map_per_t.end()) {
+                            m_genename_map_per_t.emplace(gid, gname);
+                        }
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    return m_map_cell.size();
+}
+
+int readCellgemTask_cell::getdataWithGenename_exon() {
+    int i = 0, k = 0, celllabel = 0;
+    char *ptr = m_pbuf;
+
+    string gid;
+    string gname;
+    int len = 0, x = 0, y = 0, umi = 0, exon = 0;
+    for (; i < m_buflen; i++) {
+        if (m_pbuf[i] == ',' || m_pbuf[i] == ';' || m_pbuf[i] == '\t' || m_pbuf[i] == '\n') {
+            switch (k) {
+                case 0:
+                    len = &m_pbuf[i] - ptr;
+                    gid.clear();
+                    gid.append(ptr, len);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 1:
+                    len = &m_pbuf[i] - ptr;
+                    gname.clear();
+                    gname.append(ptr, len);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 2:
+                    x = atoi(ptr);
+                    m_min_x = std::min(m_min_x, x);
+                    m_max_x = std::max(m_max_x, x);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 3:
+                    y = atoi(ptr);
+                    m_min_y = std::min(m_min_y, y);
+                    m_max_y = std::max(m_max_y, y);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 4:
+                    umi = atoi(ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 5:
+                    exon = atoi(ptr);
+                    k++;
+                    ptr = &m_pbuf[i + 1];
+                    break;
+                case 6:
+                    k = 0;
+                    celllabel = atoi(ptr);
+                    ptr = &m_pbuf[i + 1];
+
+                    if (celllabel > 0) {
+                        if (m_map_cell.find(celllabel) == m_map_cell.end()) {
+                            cgef_cell *cptr = new cgef_cell(celllabel);
+                            m_map_cell.emplace(celllabel, cptr);
+                        }
+                        m_map_cell[celllabel]->add(gid, umi, x, y, exon);
+
+                        if (m_map_gene_id.find(gid) == m_map_gene_id.end()) {
+                            m_map_gene_id.emplace(gid, 0);
+                        }
+                        if (m_genename_map_per_t.find(gid) == m_genename_map_per_t.end()) {
+                            m_genename_map_per_t.emplace(gid, gname);
                         }
                     }
 

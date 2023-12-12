@@ -52,6 +52,10 @@ class GEFTOOLS_API cgefParam {
     map<string, int> m_map_gene_id;
     string stromics_;
 
+    int gef_version = 0;
+    bool has_gene_name = false;
+    std::unordered_map<std::string, std::string> cgem_genename_map;
+
   private:
     cgefParam(/* args */) {};
     ~cgefParam() {};

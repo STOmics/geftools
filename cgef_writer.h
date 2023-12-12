@@ -50,7 +50,7 @@ class GEFTOOLS_API CgefWriter {
 
     static unsigned short calcMaxCountOfGeneExp(vector<GeneExpData> &gene_exps);
 
-    void storeAttr(CellBinAttr &cell_attr) const;
+    void storeAttr(CellBinAttr &cell_attr);
     void storeCell(unsigned int block_num, unsigned int *block_index, const unsigned int *block_size);
     void storeCellExp();
     void storeCellBorder(short *borderPath, unsigned int cell_num) const;
@@ -98,6 +98,7 @@ class GEFTOOLS_API CgefWriter {
                        vector<uint16_t> vec_cellexon_exp);
     void getAttr();
     void storeCellBorder_cnt(vector<short> &borcnt);
+    void setGefVersion(int version);
 
   public:
     hid_t file_id_;
@@ -156,6 +157,8 @@ class GEFTOOLS_API CgefWriter {
     int m_offsetX = 0;
     int m_offsetY = 0;
     int m_canvas[4] = {0, 0, 0, 0};
+
+    int gef_version_ = 2;
 };
 
 #endif  // GEFTOOLS_CGEF_WRITER_H

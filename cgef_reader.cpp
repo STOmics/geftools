@@ -195,7 +195,7 @@ GeneData *CgefReader::loadGene(bool reload) {
             return gene_array_;
     }
 
-    hid_t memtype = getMemtypeOfGeneData();
+    hid_t memtype = getMemtypeOfGeneData(m_ver);
     gene_array_ = (GeneData *)malloc(gene_num_ * sizeof(GeneData));
     H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_array_);
 
