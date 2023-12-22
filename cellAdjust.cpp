@@ -192,7 +192,7 @@ void cellAdjust::readBgef(const string &strinput) {
 
 int cellAdjust::CompleteBgefFile() {
     if (m_bgefopts->map_gene_exp_.size() == 0) {
-        log_error << "region has no information. please check. ";
+        log_info << "region has no information. please check. ";
         return -1;
     }
     m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
@@ -939,6 +939,12 @@ herr_t file_info(hid_t loc_id, const char *name, const H5L_info_t *linfo, void *
 
 
 /////////////////////////////////////////////////////////2 bgef lasso///////////////////////////////////////////////////////////////
+
+void cellAdjust::setLassoBinsize(std::vector<int> bin_size) {
+    lasso_binsize.clear();
+    lasso_binsize = bin_size;
+}
+
 void cellAdjust::createRegionGef(const string &out) {
     timer st(__FUNCTION__);
     BgefOptions::GetInstance()->output_file_ = out;
@@ -957,6 +963,15 @@ void cellAdjust::createRegionGef(const string &out) {
     for (string &str : group_names) {
         int bin = std::stoi(str.substr(3));
         m_bgefopts->bin_sizes_.push_back(bin);
+    }
+    if (!lasso_binsize.empty()) {
+        for (auto itor : lasso_binsize) {
+            if (std::find(m_bgefopts->bin_sizes_.begin(), m_bgefopts->bin_sizes_.end(), itor) == m_bgefopts->bin_sizes_.end()) {
+                m_bgefopts->bin_sizes_.push_back(itor);
+                log_info << "add bin size: "  << itor;
+            }
+        }
+        lasso_binsize.clear();
     }
     int ret = CompleteBgefFile();
 }
@@ -985,8 +1000,8 @@ void cellAdjust::getRegionGenedata(vector<vector<int>> &m_vecpos) {
             miny = std::min(miny, pos[j + 1]);
             maxy = std::max(maxy, pos[j + 1]);
         }
-        m_maxx = std::max(m_maxx, maxx);
-        m_maxy = std::max(m_maxy, maxy);
+        m_maxx = std::max(m_max_x, maxx);
+        m_maxy = std::max(m_max_y, maxy);
 
         for (uint32_t j = 0; j < cnt; j += 2) {
             relativepoint.emplace_back(pos[j] - minx, pos[j + 1] - miny);
@@ -2289,7 +2304,7 @@ void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes
 
     // 4. generate bgef file according bin1 info
     if (m_bgefopts->map_gene_exp_.size() == 0) {
-        log_error << "region has no information. please check. ";
+        log_info << "region has no information. please check. ";
         process_rate_ = -1;
         return;
     }

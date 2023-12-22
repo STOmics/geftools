@@ -915,7 +915,8 @@ int CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &bo
 
 void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                                  vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
-                                 vector<unsigned int> &gene_ind, vector<unsigned int> &count) {
+                                 vector<unsigned int> &gene_ind, vector<unsigned int> &count,
+                                 vector<unsigned int> &dnb_cnt, vector<unsigned int> &cell_area) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     if (!region.empty()) {
         min_x = region[0];
@@ -958,6 +959,8 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
                 cid++;
             }
             free(cell_exp_data);
@@ -991,6 +994,8 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
                 cid++;
             }
             free(cell_exp_data);
@@ -1022,6 +1027,8 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
+                        dnb_cnt.emplace_back(cdata[oldcid].dnb_count);
+                        cell_area.emplace_back(cdata[oldcid].area);
                     } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
@@ -1065,6 +1072,8 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
+                        dnb_cnt.emplace_back(cdata[oldcid].dnb_count);
+                        cell_area.emplace_back(cdata[oldcid].area);
                     } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
@@ -1097,6 +1106,8 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
             }
             free(cell_exp_data);
         } else {
@@ -1119,6 +1130,8 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
             }
             free(cell_exp_data);
         }
@@ -1128,7 +1141,8 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
 void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                                       vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
                                       vector<unsigned int> &gene_ind, vector<unsigned int> &count,
-                                      vector<unsigned int> &exon) {
+                                      vector<unsigned int> &exon, vector<unsigned int> &dnb_cnt,
+                                      vector<unsigned int> &cell_area) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     if (!region.empty()) {
         min_x = region[0];
@@ -1178,6 +1192,8 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
                 cid++;
             }
             free(cell_exp_data);
@@ -1219,6 +1235,8 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
                 cid++;
             }
             free(cell_exp_data);
@@ -1258,6 +1276,8 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
+                        dnb_cnt.emplace_back(cdata[oldcid].dnb_count);
+                        cell_area.emplace_back(cdata[oldcid].area);
                     } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
@@ -1309,6 +1329,8 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                         uniq_cell_id = cdata[oldcid].x;
                         uniq_cell_id = (uniq_cell_id << 32) | cdata[oldcid].y;
                         uniq_cells.emplace_back(uniq_cell_id);
+                        dnb_cnt.emplace_back(cdata[oldcid].dnb_count);
+                        cell_area.emplace_back(cdata[oldcid].area);
                     } else {
                         cell_ind.push_back(cidmap[oldcid]);
                     }
@@ -1349,6 +1371,8 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
             }
             free(cell_exp_data);
             free(pcell_exp_exon);
@@ -1378,6 +1402,8 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                 uniq_cell_id = cdata[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | cdata[i].y;
                 uniq_cells.emplace_back(uniq_cell_id);
+                dnb_cnt.emplace_back(cdata[i].dnb_count);
+                cell_area.emplace_back(cdata[i].area);
             }
             free(cell_exp_data);
             free(pcell_exp_exon);

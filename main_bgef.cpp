@@ -513,9 +513,9 @@ void writednb(BgefOptions *opts, BgefWriter &bgef_writer, int bin) {
         // }
     }
 
-    int sz = vec_mid.size();
+    unsigned int sz = vec_mid.size();
     sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
-    int limit = sz * 0.999;
+    unsigned int limit = sz * 0.999;
     dnbM.dnb_attr.max_mid = vec_mid[limit];
 
     dnbM.dnb_attr.number = number;

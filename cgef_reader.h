@@ -258,12 +258,14 @@ class GEFTOOLS_API CgefReader {
 
     void getfiltereddata(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                          vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
-                         vector<unsigned int> &gene_ind, vector<unsigned int> &count);
+                         vector<unsigned int> &gene_ind, vector<unsigned int> &count, vector<unsigned int> &dnb_cnt,
+                         vector<unsigned int> &cell_area);
 
     bool isContainExon() { return m_bexon; }
     void getfiltereddata_exon(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                               vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
-                              vector<unsigned int> &gene_ind, vector<unsigned int> &count, vector<unsigned int> &exon);
+                              vector<unsigned int> &gene_ind, vector<unsigned int> &count, vector<unsigned int> &exon,
+                              vector<unsigned int> &dnb_cnt, vector<unsigned int> &cell_area);
 };
 
 #endif  // GEFTOOLS_CGEF_READER_H

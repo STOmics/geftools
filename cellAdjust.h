@@ -102,6 +102,7 @@ class GEFTOOLS_API cellAdjust {
     int createRegionBgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos,
                                int bin_size);
     int createRegionCgefByCord(const string &strinput, const string &strout, vector<vector<int>> &m_vecpos);
+    void setLassoBinsize(std::vector<int> bin_size);
 
   private:
     BgefOptions *m_bgefopts = nullptr;
@@ -158,6 +159,7 @@ class GEFTOOLS_API cellAdjust {
     int lasso_bgef_rate_ = 0;
 
     int cgef_version_ = 0;
+    std::vector<int> lasso_binsize {};
 };
 
 #endif
