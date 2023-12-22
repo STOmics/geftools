@@ -499,13 +499,13 @@ void writednb(BgefOptions *opts, BgefWriter &bgef_writer, int bin) {
         }
     }
 
-    int sz = vec_mid.size();
+    unsigned int sz = vec_mid.size();
     sort(vec_mid.begin(), vec_mid.end(), [](const unsigned int a, const unsigned int b) { return a < b; });
     // if (bin > 50) {
     //     // printf("%d\n", vec_mid[sz-1]);
     //     dnbM.dnb_attr.max_mid = vec_mid[sz - 1];
     // } else {
-        int limit = sz * 0.999;
+        unsigned int limit = sz * 0.999;
         // printf("%d %d %d %d \n", sz, limit, vec_mid[sz-1], vec_mid[limit]);
         dnbM.dnb_attr.max_mid = vec_mid[limit];
     // }
