@@ -833,8 +833,6 @@ void BgefReader::getGeneExpression(unordered_map<string, vector<Expression>> &ge
         for (unsigned int i = gene[gene_id].offset; i < end; i++) {
             exps.emplace_back(expression[i]);
         }
-        if (version_ > GeneNameVersion) {
-        }
 
         gene_exp_map.insert(unordered_map<string, vector<Expression>>::value_type(gene[gene_id].gene, exps));
     }
