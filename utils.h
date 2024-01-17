@@ -32,7 +32,7 @@ using namespace std;
 // using namespace cv;
 
 const int READLEN = 256 * 1024;
-const unsigned int GEFVERSION[3] = {1, 1, 0};
+const unsigned int GEFVERSION[3] = {1, 1, 1};
 const int BORDERCNT = 32;
 static constexpr const int GeneNameVersion = 3;
 

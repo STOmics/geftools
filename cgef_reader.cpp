@@ -377,12 +377,11 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
                 free(cell_exp_data);
             }
         } else {
-            // todo wanruiwen
             hid_t memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
             H5Tinsert(memtype, "count", 0, H5T_NATIVE_USHORT);
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, count);
             memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
-            H5Tinsert(memtype, "geneID", 0, H5T_NATIVE_USHORT);
+            H5Tinsert(memtype, "geneID", 0, H5T_NATIVE_UINT);
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, indices);
 
             CellData *cell_data = loadCell();
