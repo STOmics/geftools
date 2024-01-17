@@ -16,8 +16,8 @@ hid_t getMemtypeOfGeneData(int version) {
     if (version > GeneNameVersion) {
         H5Tset_size(str64_type_, 64);
         memtype = H5Tcreate(H5T_COMPOUND, sizeof(GeneData));
-        H5Tinsert(memtype, "geneID", HOFFSET(GeneData, gene_name), str64_type_);
-        H5Tinsert(memtype, "geneName", HOFFSET(GeneData, gene_name_id), str64_type_);
+        H5Tinsert(memtype, "geneID", HOFFSET(GeneData, gene_name_id), str64_type_);
+        H5Tinsert(memtype, "geneName", HOFFSET(GeneData, gene_name), str64_type_);
         H5Tinsert(memtype, "offset", HOFFSET(GeneData, offset), H5T_NATIVE_UINT);
         H5Tinsert(memtype, "cellCount", HOFFSET(GeneData, cell_count), H5T_NATIVE_UINT);
         H5Tinsert(memtype, "expCount", HOFFSET(GeneData, exp_count), H5T_NATIVE_UINT);

@@ -44,7 +44,7 @@ public:
 
         {
             std::lock_guard<std::mutex> tlock(m_mtx);
-            string str(m_genePtr[m_gene_id].gene);
+            string str(m_genePtr[m_gene_id].gene_name);
             m_hashExp.emplace(str, std::move(exps));
         }
     }

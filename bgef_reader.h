@@ -28,10 +28,11 @@ class GEFTOOLS_API BgefReader {
     bool expression_attr_init_ = false;
     unsigned int whole_exp_matrix_shape_[2] = {0};
     Gene *genes_ = nullptr;
+    Gene *new_genes_ = nullptr;
     Expression *expressions_ = nullptr;
     Expression *reduce_expressions_ = nullptr;
     cv::Mat whole_exp_matrix_t_;
-    int version_ {};
+    int version_ {0};
     int verbose_ = true;
     int n_thread_ = 1;
     BgefOptions *opts_ = nullptr;
@@ -68,6 +69,7 @@ class GEFTOOLS_API BgefReader {
     unsigned int getGeneNum() const;
     unsigned int getCellNum();
     Gene *getGene();
+    Gene *getGene_new();
     /**
      * @brief Get the number of expression.
      */
@@ -149,7 +151,7 @@ class GEFTOOLS_API BgefReader {
      * @deprecated For special reasons, this function may be removed in future versions
      */
     vector<string> getSparseMatrixIndicesOfGene(unsigned int *gene_index);
-
+    vector<string> getGeneIds();
     /**
      * @brief Gets indices for building csr_matrix.
      *
@@ -200,11 +202,12 @@ class GEFTOOLS_API BgefReader {
 
     void getfiltereddata(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                          vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
-                         vector<unsigned int> &gene_ind, vector<unsigned int> &count);
+                         vector<unsigned int> &gene_ind, vector<unsigned int> &count, vector<string> &vec_geneids);
 
     void getfiltereddata_exon(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                               vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
-                              vector<unsigned int> &gene_ind, vector<unsigned int> &count, vector<unsigned int> &exon);
+                              vector<unsigned int> &gene_ind, vector<unsigned int> &count, vector<unsigned int> &exon,
+                              vector<string> &vec_geneids);
 
     void getOffset(int *data);
     void getExpAttr(int *data);
@@ -220,8 +223,7 @@ class GEFTOOLS_API BgefReader {
                          uint32_t cols, void *pdnbbuf, vector<unsigned long long> &vecindex);
 
     void GetGenesLevelDnb(bool bfilter, bool btop, uint32_t level, uint32_t start_x, uint32_t start_y, uint32_t end_x,
-                          uint32_t end_y, vector<unsigned long long> &vecindex,
-                          vector<string> genelist);
+                          uint32_t end_y, vector<unsigned long long> &vecindex, vector<string> genelist);
     uint32_t getGeneDnbNum();
     levelgenednb *getGeneDnbData();
     int getGeneId2GeneNameMap(unordered_map<string, string> &gene_name_map);

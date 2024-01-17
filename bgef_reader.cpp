@@ -58,6 +58,11 @@ BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool 
         printf("%s is not exist\n", dname);
     }
 
+    hid_t attr;
+    attr = H5Aopen(file_id_, "version", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_UINT, &version_);
+    H5Aclose(attr);
+
     char binName[128] = {0};
     sprintf(binName, "/geneExp/bin%d", bin_size_);
     if (H5Lexists(file_id_, binName, H5P_DEFAULT) > 0) {
@@ -75,11 +80,6 @@ BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool 
         generateGeneExp(bin_size_, n_thread);
     }
 
-    hid_t attr;
-    attr = H5Aopen(file_id_, "version", H5P_DEFAULT);
-    H5Aread(attr, H5T_NATIVE_UINT, &version_);
-    H5Aclose(attr);
-
     if (H5Aexists(file_id_, "gef_area") > 0) {
         hid_t area_attr = H5Aopen(file_id_, "gef_area", H5P_DEFAULT);
         H5Aread(area_attr, H5T_NATIVE_FLOAT, &gef_area_);
@@ -91,6 +91,7 @@ BgefReader::BgefReader(const string &filename, int bin_size, int n_thread, bool 
 
 BgefReader::~BgefReader() {
     if (genes_ != nullptr) free(genes_);
+    if (new_genes_ != nullptr) free(new_genes_);
     if (cell_indices_ != nullptr) free(cell_indices_);
     if (expressions_ != nullptr) free(expressions_);
     if (reduce_expressions_ != nullptr) free(reduce_expressions_);
@@ -438,12 +439,47 @@ vector<string> BgefReader::getSparseMatrixIndicesOfGene(unsigned int *gene_index
 
     vector<string> uniq_genes;
     unsigned long long exp_len_index = 0;
-    for (unsigned int i = 0; i < gene_num_; ++i) {
-        const char *gene = gene_data[i].gene;
-        uniq_genes.emplace_back(gene);
-        unsigned int c = gene_data[i].count;
-        for (int j = 0; j < c; ++j) {
-            gene_index[exp_len_index++] = i;
+    if (version_ > GeneNameVersion) {
+        for (unsigned int i = 0; i < gene_num_; ++i) {
+            const char *gene = gene_data[i].gene_name;
+            uniq_genes.emplace_back(gene);
+            unsigned int c = gene_data[i].count;
+            for (int j = 0; j < c; ++j) {
+                gene_index[exp_len_index++] = i;
+            }
+        }
+    } else {
+        for (unsigned int i = 0; i < gene_num_; ++i) {
+            const char *gene = gene_data[i].gene;
+            uniq_genes.emplace_back(gene);
+            unsigned int c = gene_data[i].count;
+            for (int j = 0; j < c; ++j) {
+                gene_index[exp_len_index++] = i;
+            }
+        }
+    }
+
+    assert(exp_len_index == expression_num_);
+
+    return uniq_genes;
+}
+
+vector<string> BgefReader::getGeneIds() {
+    Gene *gene_data = getGene();
+
+    vector<string> uniq_genes;
+    unsigned long long exp_len_index = 0;
+    if (version_ > GeneNameVersion) {
+        for (unsigned int i = 0; i < gene_num_; ++i) {
+            const char *gene = gene_data[i].gene;
+            uniq_genes.emplace_back(gene);
+            exp_len_index++;
+        }
+    } else {
+        for (unsigned int i = 0; i < gene_num_; ++i) {
+            const char *gene = gene_data[i].gene_name;
+            uniq_genes.emplace_back(gene);
+            exp_len_index++;
         }
     }
 
@@ -503,7 +539,7 @@ Gene *BgefReader::getGene() {
         H5Tinsert(memtype, "geneName", HOFFSET(Gene, gene_name), strtype);
         H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
         H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
-    
+
         genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
         H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, genes_);
         H5Tclose(strtype);
@@ -521,6 +557,38 @@ Gene *BgefReader::getGene() {
     }
 
     return genes_;
+}
+
+Gene *BgefReader::getGene_new() {
+    if (new_genes_ != nullptr) return new_genes_;
+
+    hid_t memtype, strtype;
+    strtype = H5Tcopy(H5T_C_S1);
+    H5Tset_size(strtype, 64);
+    if (version_ > GeneNameVersion) {
+        memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(memtype, "geneID", HOFFSET(Gene, gene), strtype);
+        H5Tinsert(memtype, "geneName", HOFFSET(Gene, gene_name), strtype);
+        H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+
+        new_genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
+        H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, new_genes_);
+        H5Tclose(strtype);
+        H5Tclose(memtype);
+    } else {
+        memtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
+        H5Tinsert(memtype, "gene", HOFFSET(Gene, gene_name), strtype);
+        H5Tinsert(memtype, "offset", HOFFSET(Gene, offset), H5T_NATIVE_UINT);
+        H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
+
+        new_genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
+        H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, new_genes_);
+        H5Tclose(strtype);
+        H5Tclose(memtype);
+    }
+
+    return new_genes_;
 }
 
 cv::Mat BgefReader::getWholeExpMatrix(cv::Rect roi) {
@@ -625,9 +693,16 @@ int BgefReader::getVersion() const { return version_; }
 
 void BgefReader::getGeneNameList(vector<string> &gene_list) {
     Gene *genes = getGene();
-    for (unsigned int i = 0; i < gene_num_; i++) {
-        string name = genes[i].gene;
-        gene_list.emplace_back(name);
+    if (version_ > GeneNameVersion) {
+        for (unsigned int i = 0; i < gene_num_; i++) {
+            string name = genes[i].gene_name;
+            gene_list.emplace_back(name);
+        }
+    } else {
+        for (unsigned int i = 0; i < gene_num_; i++) {
+            string name = genes[i].gene;
+            gene_list.emplace_back(name);
+        }
     }
 }
 
@@ -917,22 +992,19 @@ int BgefReader::generateGeneExp(int bin_size, int n_thread) {
     auto &dnb_attr = opts_->dnbmatrix_.dnb_attr;
 
     opts_->range_ = {expression_attr.min_x, expression_attr.max_x, expression_attr.min_y, expression_attr.max_y};
-    //    opts->offset_x_ = expression_attr.min_x;
-    //    opts->offset_y_ = expression_attr.min_y;
-
-    //    opts->region_ = std::move(region);
     opts_->verbose_ = verbose_;
 
-    //    if(opts->region_.empty()){
     getGeneExpression(opts_->map_gene_exp_);
+    unordered_map<string, string> gene_name_map;
+    if (version_ > GeneNameVersion) {
+        getGeneId2GeneNameMap(gene_name_map);
+    }
 
     dnb_attr.len_x = int((float(expression_attr_.max_x) / bin_size) - (float(expression_attr_.min_x) / bin_size)) + 1;
     dnb_attr.len_y = int((float(expression_attr_.max_y) / bin_size) - (float(expression_attr_.min_y) / bin_size)) + 1;
 
     expression_attr_.min_x = (expression_attr.min_x / bin_size) * bin_size;
     expression_attr_.min_y = (expression_attr.min_y / bin_size) * bin_size;
-    // expression_attr_.max_x = expression_attr_.min_x + (dnb_attr.len_x-1)*bin_size;
-    // expression_attr_.max_y = expression_attr_.min_y + (dnb_attr.len_y-1)*bin_size;
     expression_attr_.max_x = (expression_attr.max_x / bin_size) * bin_size;
     expression_attr_.max_y = (expression_attr.max_y / bin_size) * bin_size;
 
@@ -978,6 +1050,7 @@ int BgefReader::generateGeneExp(int bin_size, int n_thread) {
     if (expressions_ != nullptr) free(expressions_);
     expressions_ = (Expression *)malloc(expression_num_ * sizeof(Expression));
     genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
+    new_genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
 
     uint32_t idx = 0;
     uint32_t g_idx = 0;
@@ -985,7 +1058,14 @@ int BgefReader::generateGeneExp(int bin_size, int n_thread) {
         for (uint32_t j = 0; j < itor.second.size(); j++) {
             expressions_[(idx + j)] = itor.second[j];
         }
-        genes_[g_idx] = {itor.first.c_str(), "", idx, (uint32_t)itor.second.size()};
+
+        if (version_ > GeneNameVersion) {
+            genes_[g_idx] = {itor.first.c_str(), gene_name_map[itor.first].c_str(), idx, (uint32_t)itor.second.size()};
+            new_genes_[g_idx] = {itor.first.c_str(), gene_name_map[itor.first].c_str(), idx, (uint32_t)itor.second.size()};
+        } else {
+            genes_[g_idx] = {itor.first.c_str(), "", idx, (uint32_t)itor.second.size()};
+            new_genes_[g_idx] = {"", itor.first.c_str(), idx, (uint32_t)itor.second.size()};
+        }
         idx += itor.second.size();
         g_idx++;
     }
@@ -1011,7 +1091,7 @@ void BgefReader::generateWholeExp(int bin_size, int thread) {
     //     dnb_matrix.pmatrix_us = (BinStatUS *)calloc(matrix_len, sizeof(BinStatUS));
     //     assert(dnb_matrix.pmatrix_us);
     // } else {
-        dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
+    dnb_matrix.pmatrix = (BinStat *)calloc(matrix_len, sizeof(BinStat));
     // }
 
     for (int i = 0; i < n_thread_; i++) {
@@ -1075,7 +1155,8 @@ Expression *BgefReader::getReduceExpression() {
 
 void BgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                                  vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
-                                 vector<unsigned int> &gene_ind, vector<unsigned int> &count) {
+                                 vector<unsigned int> &gene_ind, vector<unsigned int> &count,
+                                 vector<string> &vec_geneids) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     if (!region.empty()) {
         min_x = region[0];
@@ -1088,14 +1169,19 @@ void BgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
     uint32_t index = 0, gid = 0;
     std::unordered_map<unsigned long long, uint32_t> hash_map;
 
-    Gene *gene = getGene();
+    Gene *gene_new = getGene_new();
     Expression *expression = getExpression();
+
+    unordered_map<string, string> gene_name_map;
+    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+        gene_name_map.insert(unordered_map<string, string>::value_type(gene_new[gene_id].gene_name, gene_new[gene_id].gene));
+    }
 
     if (genelist.empty() && (!region.empty())) {
         map<string, vector<Expression>> hash_exp;
         ThreadPool tpool(n_thread_);
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            getdataTask *ptask = new getdataTask(gene_id, gene, expression, hash_exp);
+            getdataTask *ptask = new getdataTask(gene_id, gene_new, expression, hash_exp);
             ptask->setRange(min_x, min_y, max_x, max_y);
             tpool.addTask(ptask);
         }
@@ -1104,6 +1190,7 @@ void BgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
         auto itor = hash_exp.begin();
         for (; itor != hash_exp.end(); itor++) {
             vec_gene.emplace_back(itor->first);
+            vec_geneids.emplace_back(gene_name_map[itor->first]);
             vector<Expression> &tmp = itor->second;
             for (Expression &expData : tmp) {
                 uniq_cell_id = expData.x;
@@ -1127,11 +1214,12 @@ void BgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
             gset.insert(str);
         }
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            string str(gene[gene_id].gene);
+            string str = gene_new[gene_id].gene_name;
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(str);
-                unsigned int end = gene[gene_id].offset + gene[gene_id].count;
-                for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                vec_geneids.emplace_back(gene_name_map[str]);
+                unsigned int end = gene_new[gene_id].offset + gene_new[gene_id].count;
+                for (unsigned int i = gene_new[gene_id].offset; i < end; i++) {
                     uniq_cell_id = expression[i].x;
                     uniq_cell_id = (uniq_cell_id << 32) | expression[i].y;
 
@@ -1148,47 +1236,18 @@ void BgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                 gid++;
             }
         }
-
-        // map<string, vector<Expression>> gene_exp_map;
-        // SortGeneExpression(gene_exp_map);
-        // for (auto itor : gene_exp_map) {
-        //     string str(itor.first);
-        //     if(gset.find(str) != gset.end())
-        //     {
-        //         vec_gene.emplace_back(str);
-        //         vector<Expression> &tmp = itor.second;
-        //         for(Expression &expData : tmp)
-        //         {
-        //             uniq_cell_id = expData.x;
-        //             uniq_cell_id = (uniq_cell_id << 32) | expData.y;
-
-        //             if(hash_map.find(uniq_cell_id) != hash_map.end())
-        //             {
-        //                 cell_ind.push_back(hash_map[uniq_cell_id]);
-        //             }
-        //             else
-        //             {
-        //                 cell_ind.push_back(index);
-        //                 uniq_cells.emplace_back(uniq_cell_id);
-        //                 hash_map.emplace(uniq_cell_id, index++);
-        //             }
-        //             count.push_back(expData.count);
-        //             gene_ind.push_back(gid);
-        //         }
-        //         gid++;
-        //     }
-        // }
     } else if ((!region.empty()) && (!genelist.empty())) {
         set<string> gset;
         for (string &str : genelist) {
             gset.insert(str);
         }
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            string str(gene[gene_id].gene);
+            string str(gene_new[gene_id].gene_name);
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(str);
-                unsigned int end = gene[gene_id].offset + gene[gene_id].count;
-                for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                vec_geneids.emplace_back(gene_name_map[str]);
+                unsigned int end = gene_new[gene_id].offset + gene_new[gene_id].count;
+                for (unsigned int i = gene_new[gene_id].offset; i < end; i++) {
                     Expression &exp = expression[i];
                     if (exp.x < min_x || exp.x >= max_x || exp.y < min_y || exp.y >= max_y) {
                         continue;
@@ -1210,68 +1269,12 @@ void BgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                 gid++;
             }
         }
-
-        // map<string, vector<Expression>> gene_exp_map;
-        // SortGeneExpression(gene_exp_map);
-        // for (auto itor : gene_exp_map) {
-        //     string str(itor.first);
-        //     if(gset.find(str) != gset.end())
-        //     {
-        //         vec_gene.emplace_back(str);
-        //         vector<Expression> &tmp = itor.second;
-        //         for(Expression &expData : tmp)
-        //         {
-        //             uniq_cell_id = expData.x;
-        //             uniq_cell_id = (uniq_cell_id << 32) | expData.y;
-
-        //             if(hash_map.find(uniq_cell_id) != hash_map.end())
-        //             {
-        //                 cell_ind.push_back(hash_map[uniq_cell_id]);
-        //             }
-        //             else
-        //             {
-        //                 cell_ind.push_back(index);
-        //                 uniq_cells.emplace_back(uniq_cell_id);
-        //                 hash_map.emplace(uniq_cell_id, index++);
-        //             }
-        //             count.push_back(expData.count);
-        //             gene_ind.push_back(gid);
-        //         }
-        //         gid++;
-        //     }
-        // }
     } else {
-        // map<string, vector<Expression>> gene_exp_map;
-        // SortGeneExpression(gene_exp_map);
-        // for (auto itor : gene_exp_map)
-        // {
-        //     vec_gene.emplace_back(itor.first);
-        //     vector<Expression> &tmp = itor.second;
-        //     for(Expression &expData : tmp)
-        //     {
-        //         uniq_cell_id = expData.x;
-        //         uniq_cell_id = (uniq_cell_id << 32) | expData.y;
-
-        //         if(hash_map.find(uniq_cell_id) != hash_map.end())
-        //         {
-        //             cell_ind.push_back(hash_map[uniq_cell_id]);
-        //         }
-        //         else
-        //         {
-        //             cell_ind.push_back(index);
-        //             uniq_cells.emplace_back(uniq_cell_id);
-        //             hash_map.emplace(uniq_cell_id, index++);
-        //         }
-        //         count.push_back(expData.count);
-        //         gene_ind.push_back(gid);
-        //     }
-        //     gid++;
-        // }
-
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            vec_gene.emplace_back(gene[gene_id].gene);
-            unsigned int end = gene[gene_id].offset + gene[gene_id].count;
-            for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+            vec_gene.emplace_back(gene_new[gene_id].gene_name);
+            vec_geneids.emplace_back(gene_new[gene_id].gene);
+            unsigned int end = gene_new[gene_id].offset + gene_new[gene_id].count;
+            for (unsigned int i = gene_new[gene_id].offset; i < end; i++) {
                 uniq_cell_id = expression[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | expression[i].y;
 
@@ -1292,7 +1295,7 @@ void BgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
 void BgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                                       vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
                                       vector<unsigned int> &gene_ind, vector<unsigned int> &count,
-                                      vector<unsigned int> &exon) {
+                                      vector<unsigned int> &exon, vector<string> &vec_geneids) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     if (!region.empty()) {
         min_x = region[0];
@@ -1305,14 +1308,19 @@ void BgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
     uint32_t index = 0, gid = 0;
     std::unordered_map<unsigned long long, uint32_t> hash_map;
 
-    Gene *gene = getGene();
+    Gene *gene_new = getGene_new();
     Expression *expression = getExpression();
+
+    unordered_map<string, string> gene_name_map;
+    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+        gene_name_map.insert(unordered_map<string, string>::value_type(gene_new[gene_id].gene_name, gene_new[gene_id].gene));
+    }
 
     if (genelist.empty() && (!region.empty())) {
         map<string, vector<Expression>> hash_exp;
         ThreadPool tpool(n_thread_);
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            getdataTask *ptask = new getdataTask(gene_id, gene, expression, hash_exp);
+            getdataTask *ptask = new getdataTask(gene_id, gene_new, expression, hash_exp);
             ptask->setRange(min_x, min_y, max_x, max_y);
             tpool.addTask(ptask);
         }
@@ -1321,6 +1329,7 @@ void BgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
         auto itor = hash_exp.begin();
         for (; itor != hash_exp.end(); itor++) {
             vec_gene.emplace_back(itor->first);
+            vec_geneids.emplace_back(gene_name_map[itor->first]);
             vector<Expression> &tmp = itor->second;
             for (Expression &expData : tmp) {
                 uniq_cell_id = expData.x;
@@ -1345,11 +1354,12 @@ void BgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             gset.insert(str);
         }
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            string str(gene[gene_id].gene);
+            string str(gene_new[gene_id].gene_name);
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(str);
-                unsigned int end = gene[gene_id].offset + gene[gene_id].count;
-                for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                vec_geneids.emplace_back(gene_name_map[str]);
+                unsigned int end = gene_new[gene_id].offset + gene_new[gene_id].count;
+                for (unsigned int i = gene_new[gene_id].offset; i < end; i++) {
                     uniq_cell_id = expression[i].x;
                     uniq_cell_id = (uniq_cell_id << 32) | expression[i].y;
 
@@ -1367,48 +1377,18 @@ void BgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                 gid++;
             }
         }
-
-        // map<string, vector<Expression>> gene_exp_map;
-        // SortGeneExpression(gene_exp_map);
-        // for (auto itor : gene_exp_map) {
-        //     string str(itor.first);
-        //     if(gset.find(str) != gset.end())
-        //     {
-        //         vec_gene.emplace_back(str);
-        //         vector<Expression> &tmp = itor.second;
-        //         for(Expression &expData : tmp)
-        //         {
-        //             uniq_cell_id = expData.x;
-        //             uniq_cell_id = (uniq_cell_id << 32) | expData.y;
-
-        //             if(hash_map.find(uniq_cell_id) != hash_map.end())
-        //             {
-        //                 cell_ind.push_back(hash_map[uniq_cell_id]);
-        //             }
-        //             else
-        //             {
-        //                 cell_ind.push_back(index);
-        //                 uniq_cells.emplace_back(uniq_cell_id);
-        //                 hash_map.emplace(uniq_cell_id, index++);
-        //             }
-        //             exon.push_back(expData.exon);
-        //             count.push_back(expData.count);
-        //             gene_ind.push_back(gid);
-        //         }
-        //         gid++;
-        //     }
-        // }
     } else if ((!region.empty()) && (!genelist.empty())) {
         set<string> gset;
         for (string &str : genelist) {
             gset.insert(str);
         }
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            string str(gene[gene_id].gene);
+            string str(gene_new[gene_id].gene_name);
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(str);
-                unsigned int end = gene[gene_id].offset + gene[gene_id].count;
-                for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+                vec_geneids.emplace_back(gene_name_map[str]);
+                unsigned int end = gene_new[gene_id].offset + gene_new[gene_id].count;
+                for (unsigned int i = gene_new[gene_id].offset; i < end; i++) {
                     Expression &exp = expression[i];
                     if (exp.x < min_x || exp.x >= max_x || exp.y < min_y || exp.y >= max_y) {
                         continue;
@@ -1431,70 +1411,12 @@ void BgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                 gid++;
             }
         }
-
-        // map<string, vector<Expression>> gene_exp_map;
-        // SortGeneExpression(gene_exp_map);
-        // for (auto itor : gene_exp_map) {
-        //     string str(itor.first);
-        //     if(gset.find(str) != gset.end())
-        //     {
-        //         vec_gene.emplace_back(str);
-        //         vector<Expression> &tmp = itor.second;
-        //         for(Expression &expData : tmp)
-        //         {
-        //             uniq_cell_id = expData.x;
-        //             uniq_cell_id = (uniq_cell_id << 32) | expData.y;
-
-        //             if(hash_map.find(uniq_cell_id) != hash_map.end())
-        //             {
-        //                 cell_ind.push_back(hash_map[uniq_cell_id]);
-        //             }
-        //             else
-        //             {
-        //                 cell_ind.push_back(index);
-        //                 uniq_cells.emplace_back(uniq_cell_id);
-        //                 hash_map.emplace(uniq_cell_id, index++);
-        //             }
-        //             exon.push_back(expData.exon);
-        //             count.push_back(expData.count);
-        //             gene_ind.push_back(gid);
-        //         }
-        //         gid++;
-        //     }
-        // }
     } else {
-        // map<string, vector<Expression>> gene_exp_map;
-        // SortGeneExpression(gene_exp_map);
-        // for (auto itor : gene_exp_map)
-        // {
-        //     vec_gene.emplace_back(itor.first);
-        //     vector<Expression> &tmp = itor.second;
-        //     for(Expression &expData : tmp)
-        //     {
-        //         uniq_cell_id = expData.x;
-        //         uniq_cell_id = (uniq_cell_id << 32) | expData.y;
-
-        //         if(hash_map.find(uniq_cell_id) != hash_map.end())
-        //         {
-        //             cell_ind.push_back(hash_map[uniq_cell_id]);
-        //         }
-        //         else
-        //         {
-        //             cell_ind.push_back(index);
-        //             uniq_cells.emplace_back(uniq_cell_id);
-        //             hash_map.emplace(uniq_cell_id, index++);
-        //         }
-        //         exon.push_back(expData.exon);
-        //         count.push_back(expData.count);
-        //         gene_ind.push_back(gid);
-        //     }
-        //     gid++;
-        // }
-
         for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
-            vec_gene.emplace_back(gene[gene_id].gene);
-            unsigned int end = gene[gene_id].offset + gene[gene_id].count;
-            for (unsigned int i = gene[gene_id].offset; i < end; i++) {
+            vec_gene.emplace_back(gene_new[gene_id].gene_name);
+            vec_geneids.emplace_back(gene_new[gene_id].gene);
+            unsigned int end = gene_new[gene_id].offset + gene_new[gene_id].count;
+            for (unsigned int i = gene_new[gene_id].offset; i < end; i++) {
                 uniq_cell_id = expression[i].x;
                 uniq_cell_id = (uniq_cell_id << 32) | expression[i].y;
 
@@ -1533,7 +1455,7 @@ void BgefReader::getExpAttr(int *data) {
     }
 }
 
-////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 unsigned int *BgefReader::getGeneExon() {
     if (m_bexon) {
         if (m_exonPtr) return m_exonPtr;
@@ -1686,14 +1608,13 @@ uint32_t BgefReader::getleveldnb(bool bfilter, bool btop, uint32_t level, uint32
 }
 
 void BgefReader::GetGenesLevelDnb(bool bfilter, bool btop, uint32_t level, uint32_t start_x, uint32_t start_y,
-                                  uint32_t end_x, uint32_t end_y,
-                                  vector<unsigned long long> &vecindex,
+                                  uint32_t end_x, uint32_t end_y, vector<unsigned long long> &vecindex,
                                   vector<string> genelist) {
     timer st("getgeneleveldnb");
 
-    // vector<levelgenednb> m_vecdnb;                                          
+    // vector<levelgenednb> m_vecdnb;
     uint32_t max_mid = 0;
-    std::map<unsigned long long, unsigned int> map_dnb;   
+    std::map<unsigned long long, unsigned int> map_dnb;
     m_vecdnb.clear();
     vector<levelgenednb>().swap(m_vecdnb);
 
@@ -1817,7 +1738,7 @@ uint32_t BgefReader::getGeneDnbNum() {
     }
 }
 
-levelgenednb* BgefReader::getGeneDnbData() {
+levelgenednb *BgefReader::getGeneDnbData() {
     if (!m_vecdnb.empty()) {
         levelgenednb *pbuf = new levelgenednb[m_vecdnb.size()];
         memcpy(pbuf, &m_vecdnb[0], m_vecdnb.size() * sizeof(levelgenednb));

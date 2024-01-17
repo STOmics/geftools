@@ -198,7 +198,7 @@ bool is_bgef(string &filename) {
     if (file_id < 0) {
         return false;
     }
-    
+
     bool is_b = false;
     if (H5Lexists(file_id, "geneExp", H5P_DEFAULT)) is_b = true;
     H5Fclose(file_id);
@@ -269,9 +269,9 @@ unsigned int parseResolutin(const string &filename) {
 long tifread(cv::Mat &img, const string &strtif) {
     TIFF *tif = TIFFOpen(strtif.c_str(), "r");
     if (tif) {
-        uint32_t w, h, ch;
-        uint16_t ncn;
-        size_t npixels;
+        uint32_t w {0}, h {0}, ch {0};
+        uint16_t ncn {0};
+        size_t npixels(0);
 
         TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &w);
         TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &h);

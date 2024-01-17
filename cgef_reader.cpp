@@ -198,7 +198,12 @@ GeneData *CgefReader::loadGene(bool reload) {
     hid_t memtype = getMemtypeOfGeneData(m_ver);
     gene_array_ = (GeneData *)malloc(gene_num_ * sizeof(GeneData));
     H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, gene_array_);
-
+    
+    if (m_ver <= GeneNameVersion) {
+        for (unsigned int i = 0; i < gene_num_; i++) {
+            memset(gene_array_[i].gene_name_id, '\0', 64);
+        }
+    }
     for (unsigned int i = 0; i < gene_num_; i++) {
         genename_to_id_[gene_array_[i].gene_name] = i;
     }
@@ -237,7 +242,16 @@ void CgefReader::getGeneNames(char *gene_list) {
     int i = 0;
     for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
         if (gene_id_to_index_[gene_id] < 0) continue;
-        memcpy(&gene_list[i * 32], gene_array_[gene_id].gene_name, 32);
+        memcpy(&gene_list[i * 64], gene_array_[gene_id].gene_name, 64);
+        i++;
+    }
+}
+
+void CgefReader::getGeneIds(char *gene_ids) {
+    int i = 0;
+    for (unsigned int gene_id = 0; gene_id < gene_num_; gene_id++) {
+        if (gene_id_to_index_[gene_id] < 0) continue;
+        memcpy(&gene_ids[i * 64], gene_array_[gene_id].gene_name_id, 64);
         i++;
     }
 }
@@ -916,7 +930,7 @@ int CgefReader::getCellBorders(vector<unsigned int> &cell_ind, vector<short> &bo
 void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, vector<string> &vec_gene,
                                  vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
                                  vector<unsigned int> &gene_ind, vector<unsigned int> &count,
-                                 vector<unsigned int> &dnb_cnt, vector<unsigned int> &cell_area) {
+                                 vector<unsigned int> &dnb_cnt, vector<unsigned int> &cell_area, vector<string> &vec_geneids) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     if (!region.empty()) {
         min_x = region[0];
@@ -948,6 +962,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
+                        vec_geneids.emplace_back(std::move(gdata[cptr[j].gene_id].gene_name_id));
                         gidmap.emplace((uint32_t)cptr[j].gene_id, gid++);
                     } else {
                         gene_ind.push_back(gidmap[(uint32_t)cptr[j].gene_id]);
@@ -983,6 +998,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
+                        vec_geneids.emplace_back(std::move(gdata[cptr[j].gene_id].gene_name_id));
                         gidmap.emplace(cptr[j].gene_id, gid++);
                     } else {
                         gene_ind.push_back(gidmap[cptr[j].gene_id]);
@@ -1017,6 +1033,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
             string str(gdata[gene_id].gene_name);
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
+                vec_geneids.emplace_back(gdata[gene_id].gene_name_id);
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
                 for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
                     oldcid = gptr[j].cell_id;
@@ -1057,6 +1074,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
             string str(gdata[gene_id].gene_name);
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
+                vec_geneids.emplace_back(gdata[gene_id].gene_name_id);
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
                 for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
                     oldcid = gptr[j].cell_id;
@@ -1093,6 +1111,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
 
             for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
+                vec_geneids.emplace_back(gene_array_[i].gene_name_id);
             }
 
             unsigned long long uniq_cell_id;
@@ -1117,6 +1136,7 @@ void CgefReader::getfiltereddata(vector<int> &region, vector<string> &genelist, 
 
             for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
+                vec_geneids.emplace_back(gene_array_[i].gene_name_id);
             }
 
             unsigned long long uniq_cell_id;
@@ -1142,7 +1162,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                                       vector<unsigned long long> &uniq_cells, vector<unsigned int> &cell_ind,
                                       vector<unsigned int> &gene_ind, vector<unsigned int> &count,
                                       vector<unsigned int> &exon, vector<unsigned int> &dnb_cnt,
-                                      vector<unsigned int> &cell_area) {
+                                      vector<unsigned int> &cell_area, vector<string> &vec_geneids) {
     int min_x = 0, max_x = 0, min_y = 0, max_y = 0;
     if (!region.empty()) {
         min_x = region[0];
@@ -1180,6 +1200,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
+                        vec_geneids.emplace_back(std::move(gdata[cptr[j].gene_id].gene_name_id));
                         gidmap.emplace(cptr[j].gene_id, gid++);
                     } else {
                         gene_ind.push_back(gidmap[cptr[j].gene_id]);
@@ -1223,6 +1244,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
                         gene_ind.push_back(gid);
                         string str(gdata[cptr[j].gene_id].gene_name);
                         vec_gene.emplace_back(std::move(str));
+                        vec_geneids.emplace_back(std::move(gdata[cptr[j].gene_id].gene_name_id));
                         gidmap.emplace(cptr[j].gene_id, gid++);
                     } else {
                         gene_ind.push_back(gidmap[cptr[j].gene_id]);
@@ -1265,6 +1287,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             string str(gdata[gene_id].gene_name);
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
+                vec_geneids.emplace_back(std::move(gdata[gene_id].gene_name_id));
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
                 uint16_t *pexon = pgene_exp_exon + gdata[gene_id].offset;
                 for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
@@ -1313,6 +1336,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
             string str(gdata[gene_id].gene_name);
             if (gset.find(str) != gset.end()) {
                 vec_gene.emplace_back(std::move(str));
+                vec_geneids.emplace_back(std::move(gdata[gene_id].gene_name_id));
                 GeneExpData *gptr = gene_exp_data + gdata[gene_id].offset;
                 uint16_t *pexon = pgene_exp_exon + gdata[gene_id].offset;
                 for (uint32_t j = 0; j < gdata[gene_id].cell_count; j++) {
@@ -1357,6 +1381,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
 
             for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
+                vec_geneids.emplace_back(std::move(gene_array_[i].gene_name_id));
             }
 
             unsigned long long uniq_cell_id;
@@ -1388,6 +1413,7 @@ void CgefReader::getfiltereddata_exon(vector<int> &region, vector<string> &genel
 
             for (uint32_t i = 0; i < gene_num_; i++) {
                 vec_gene.emplace_back(gene_array_[i].gene_name);
+                vec_geneids.emplace_back(std::move(gene_array_[i].gene_name_id));
             }
 
             unsigned long long uniq_cell_id;

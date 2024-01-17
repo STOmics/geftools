@@ -121,8 +121,8 @@ struct GEFTOOLS_API Gene {
         offset = o;
         count = c;
     }
-    char gene[64] = {0};
-    char gene_name[64] = {0};
+    char gene[64] = {};
+    char gene_name[64] = {};
 
     unsigned int offset;
     unsigned int count;
@@ -143,8 +143,8 @@ struct GEFTOOLS_API GeneStat {
         mid_count = m;
         E10 = e;
     }
-    char gene[64] = {0};
-    char gene_name[64] = {0};
+    char gene[64] = {};
+    char gene_name[64] = {};
 
     unsigned int mid_count;
     float E10;
@@ -242,8 +242,8 @@ struct GEFTOOLS_API GeneData {
         exp_count = e;
         max_mid_count = m;
     }
-    char gene_name[64] = {0};
-    char gene_name_id[64] = {0};
+    char gene_name[64] = {};
+    char gene_name_id[64] = {};
     unsigned int offset {0};  ///< Offset of current gene in geneExp, 0-based
     unsigned int cell_count {0};
     unsigned int exp_count {0};
