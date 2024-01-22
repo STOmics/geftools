@@ -32,7 +32,7 @@ using namespace std;
 // using namespace cv;
 
 const int READLEN = 256 * 1024;
-const unsigned int GEFVERSION[3] = {0, 8, 11};
+const unsigned int GEFVERSION[3] = {0, 8, 12};
 const int BORDERCNT = 32;
 
 namespace errorCode {

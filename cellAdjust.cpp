@@ -859,56 +859,57 @@ void cellAdjust::getRegionGenedata(vector<vector<int>> &m_vecpos) {
     m_bgefopts->map_gene_exp_.clear();
     int num = m_vecpos.size();
     uint64_t l_id = 0;
+
     vector<cv::Point> non_zerovecpoint;
     vector<cv::Point> relativepoint;
-    int x, y;
+    int x {0}, y{0};
     unsigned long totalSize = 0;
+    int minx = INT_MAX, miny = INT_MAX, maxx = 0, maxy = 0;
+    std::vector<std::vector<cv::Point>> relativepoints;
 
     for (uint32_t i = 0; i < num; i++) {
-        relativepoint.clear();
-        non_zerovecpoint.clear();
-
         int cnt = m_vecpos[i].size();
         int *pos = m_vecpos[i].data();
-        int minx = INT_MAX, miny = INT_MAX, maxx = 0, maxy = 0;
         for (uint32_t j = 0; j < cnt; j += 2) {
             minx = std::min(minx, pos[j]);
             maxx = std::max(maxx, pos[j]);
             miny = std::min(miny, pos[j + 1]);
             maxy = std::max(maxy, pos[j + 1]);
         }
-        m_maxx = std::max(m_maxx, maxx);
-        m_maxy = std::max(m_maxy, maxy);
+        m_maxx = std::max(m_max_x, maxx);
+        m_maxy = std::max(m_max_y, maxy);
 
         for (uint32_t j = 0; j < cnt; j += 2) {
             relativepoint.emplace_back(pos[j] - minx, pos[j + 1] - miny);
         }
+        relativepoints.emplace_back(std::move(relativepoint));
 
-        int rows = maxy - miny + 1;
-        int cols = maxx - minx + 1;
-        cv::Mat fill_points = cv::Mat::zeros(rows, cols, CV_8UC1);
-        fillPoly(fill_points, relativepoint, 1);
-        findNonZero(fill_points, non_zerovecpoint);
+    }
 
-        for (cv::Point &pt : non_zerovecpoint) {
-            x = pt.x + minx;
-            y = pt.y + miny;
-            l_id = x;
-            l_id = (l_id << 32) | y;
-            auto dnb_itor = m_hash_vecdnb_exon.find(l_id);
-            if (dnb_itor != m_hash_vecdnb_exon.end()) {
-                for (Dnbs_exon &dnbs : dnb_itor->second) {
-                    string str(m_vecgenename[dnbs.geneid]);
-                    auto itor_t = m_bgefopts->map_gene_exp_.find(str);
-                    if (itor_t == m_bgefopts->map_gene_exp_.end()) {
-                        vector<Expression> tvec;
-                        m_bgefopts->map_gene_exp_.emplace(str, std::move(tvec));
-                    }
-                    m_bgefopts->map_gene_exp_[str].emplace_back(x, y, dnbs.midcnt, dnbs.exon);
+    int rows = maxy - miny + 1;
+    int cols = maxx - minx + 1;
+    cv::Mat fill_points = cv::Mat::zeros(rows, cols, CV_8UC1);
+    fillPoly(fill_points, relativepoint, 1);
+    findNonZero(fill_points, non_zerovecpoint);
+
+    for (cv::Point &pt : non_zerovecpoint) {
+        x = pt.x + minx;
+        y = pt.y + miny;
+        l_id = x;
+        l_id = (l_id << 32) | y;
+        auto dnb_itor = m_hash_vecdnb_exon.find(l_id);
+        if (dnb_itor != m_hash_vecdnb_exon.end()) {
+            for (Dnbs_exon &dnbs : dnb_itor->second) {
+                string str(m_vecgenename[dnbs.geneid]);
+                auto itor_t = m_bgefopts->map_gene_exp_.find(str);
+                if (itor_t == m_bgefopts->map_gene_exp_.end()) {
+                    vector<Expression> tvec;
+                    m_bgefopts->map_gene_exp_.emplace(str, std::move(tvec));
                 }
-                m_hash_vecdnb_exon.erase(l_id);
-                totalSize += dnb_itor->second.size();
+                m_bgefopts->map_gene_exp_[str].emplace_back(x, y, dnbs.midcnt, dnbs.exon);
             }
+            m_hash_vecdnb_exon.erase(l_id);
+            totalSize += dnb_itor->second.size();
         }
     }
 
@@ -925,15 +926,13 @@ void cellAdjust::getRegionCelldata(vector<vector<int>> &m_vecpos) {
     uint64_t l_id = 0;
     vector<cv::Point> non_zerovecpoint;
     vector<cv::Point> relativepoint;
-    int x, y;
+    int x {0}, y{0};
+    int minx = INT_MAX, miny = INT_MAX, maxx = 0, maxy = 0;
+    std::vector<std::vector<cv::Point>> relativepoints;
 
     for (uint32_t i = 0; i < num; i++) {
-        relativepoint.clear();
-        non_zerovecpoint.clear();
-
         int cnt = m_vecpos[i].size();
         int *pos = m_vecpos[i].data();
-        int minx = INT_MAX, miny = INT_MAX, maxx = 0, maxy = 0;
         for (uint32_t j = 0; j < cnt; j += 2) {
             minx = std::min(minx, pos[j]);
             maxx = std::max(maxx, pos[j]);
@@ -944,20 +943,22 @@ void cellAdjust::getRegionCelldata(vector<vector<int>> &m_vecpos) {
         for (uint32_t j = 0; j < cnt; j += 2) {
             relativepoint.emplace_back(pos[j] - minx, pos[j + 1] - miny);
         }
-
-        int rows = maxy - miny + 1;
-        int cols = maxx - minx + 1;
-        cv::Mat fill_points = cv::Mat::zeros(rows, cols, CV_8UC1);
-        cv::fillPoly(fill_points, relativepoint, 1);
-        cv::findNonZero(fill_points, non_zerovecpoint);
-        for (cv::Point &pt : non_zerovecpoint) {
-            x = pt.x + minx;
-            y = pt.y + miny;
-            l_id = x;
-            l_id = (l_id << 32) | y;
-            m_setcell.insert(l_id);
-        }
+        relativepoints.emplace_back(std::move(relativepoint));
     }
+
+    int rows = maxy - miny + 1;
+    int cols = maxx - minx + 1;
+    cv::Mat fill_points = cv::Mat::zeros(rows, cols, CV_8UC1);
+    cv::fillPoly(fill_points, relativepoint, 1);
+    cv::findNonZero(fill_points, non_zerovecpoint);
+    for (cv::Point &pt : non_zerovecpoint) {
+        x = pt.x + minx;
+        y = pt.y + miny;
+        l_id = x;
+        l_id = (l_id << 32) | y;
+        m_setcell.insert(l_id);
+    }
+    
 }
 
 void cellAdjust::readRawCgef(const string &strcgef) {
