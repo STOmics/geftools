@@ -868,6 +868,7 @@ void cellAdjust::getRegionGenedata(vector<vector<int>> &m_vecpos) {
     std::vector<std::vector<cv::Point>> relativepoints;
 
     for (uint32_t i = 0; i < num; i++) {
+        relativepoint.clear();
         int cnt = m_vecpos[i].size();
         int *pos = m_vecpos[i].data();
         for (uint32_t j = 0; j < cnt; j += 2) {
@@ -889,7 +890,7 @@ void cellAdjust::getRegionGenedata(vector<vector<int>> &m_vecpos) {
     int rows = maxy - miny + 1;
     int cols = maxx - minx + 1;
     cv::Mat fill_points = cv::Mat::zeros(rows, cols, CV_8UC1);
-    fillPoly(fill_points, relativepoint, 1);
+    fillPoly(fill_points, relativepoints, 1);
     findNonZero(fill_points, non_zerovecpoint);
 
     for (cv::Point &pt : non_zerovecpoint) {
@@ -931,6 +932,7 @@ void cellAdjust::getRegionCelldata(vector<vector<int>> &m_vecpos) {
     std::vector<std::vector<cv::Point>> relativepoints;
 
     for (uint32_t i = 0; i < num; i++) {
+        relativepoint.clear();
         int cnt = m_vecpos[i].size();
         int *pos = m_vecpos[i].data();
         for (uint32_t j = 0; j < cnt; j += 2) {
@@ -949,7 +951,7 @@ void cellAdjust::getRegionCelldata(vector<vector<int>> &m_vecpos) {
     int rows = maxy - miny + 1;
     int cols = maxx - minx + 1;
     cv::Mat fill_points = cv::Mat::zeros(rows, cols, CV_8UC1);
-    cv::fillPoly(fill_points, relativepoint, 1);
+    cv::fillPoly(fill_points, relativepoints, 1);
     cv::findNonZero(fill_points, non_zerovecpoint);
     for (cv::Point &pt : non_zerovecpoint) {
         x = pt.x + minx;
