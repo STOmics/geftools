@@ -673,6 +673,7 @@ void cellAdjust::createRegionGef(const string &out) {
     m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
     ThreadPool thpool(m_bgefopts->thread_ * 2);
 
+    m_bgefopts->m_stromics.clear();
     m_bgefopts->m_stromics.append(m_szomics);
     BgefWriter bgef_writer(out, false, m_bexon, m_bgefopts->m_stromics);
     bgef_writer.setResolution(m_resolution);
@@ -2310,6 +2311,7 @@ void cellAdjust::DoGenerate(int bin_size, std::vector<MidCntFilter> filter_genes
 
     m_bgefopts->m_genes_queue.init(m_bgefopts->map_gene_exp_.size());
     ThreadPool thpool(m_bgefopts->thread_ * 2);
+    m_bgefopts->m_stromics.clear();
     m_bgefopts->m_stromics.append(m_szomics);
     log_info << "thread count is : " << m_bgefopts->thread_;
 
