@@ -191,7 +191,7 @@ void bgefCreater::readbgef(const string &strin) {
     H5Dclose(exp_did);
 
     if (H5Aexists(file_id, "omics") > 0) {
-        hid_t m_szomics_strtype;
+        hid_t m_szomics_strtype = H5Tcopy(H5T_C_S1);
         // this will lear to read more 32 byte to the buffer,however
         // the out_img's memory will be covered,finally,get the access error!
         H5Tset_size(m_szomics_strtype, sizeof(m_szomics) / sizeof(char));
