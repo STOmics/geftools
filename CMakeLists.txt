@@ -23,7 +23,8 @@ if(WIN32)
   add_library(geftools SHARED ${SRC_LIST} ${Headers})
   target_link_libraries(geftools hdf5.lib tiff.lib opencv_world454.lib zlib.lib)
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -DNDEBUG -fPIC")
+  #modify O0 to O2
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O2 -DNDEBUG -fPIC")
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
   find_package(OpenCV REQUIRED COMPONENTS opencv_core opencv_highgui opencv_imgcodecs opencv_imgproc)
