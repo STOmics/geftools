@@ -197,7 +197,7 @@ void bgefCreater::readbgef(const string &strin) {
         H5Tset_size(m_szomics_strtype, sizeof(m_szomics) / sizeof(char));
         hid_t fattr = H5Aopen(file_id, "omics", H5P_DEFAULT);
         H5Aread(fattr, m_szomics_strtype, m_szomics);
-        H5TClose(m_szomics_strtype);
+        H5Tclose(m_szomics_strtype);
     }
     H5Tclose(strtype);
     H5Fclose(file_id);
