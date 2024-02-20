@@ -131,10 +131,7 @@ void bgefCreater::readbgef(const string &strin) {
     m_genePtr = (Gene *)malloc(dims[0] * sizeof(Gene));
     hid_t genememtype, strtype;
     strtype = H5Tcopy(H5T_C_S1);
-    // this will lear to read more 32 byte to the buffer,however
-    // the out_img's memory will be covered,finally,get the access error!
-    //  H5Tset_size(strtype, 64);
-    H5Tset_size(strtype, sizeof(m_szomics) / sizeof(char));
+    H5Tset_size(strtype, 64);
 
     genememtype = H5Tcreate(H5T_COMPOUND, sizeof(Gene));
     H5Tinsert(genememtype, "gene", HOFFSET(Gene, gene), strtype);
@@ -194,8 +191,13 @@ void bgefCreater::readbgef(const string &strin) {
     H5Dclose(exp_did);
 
     if (H5Aexists(file_id, "omics") > 0) {
+        hid_t m_szomics_strtype;
+        // this will lear to read more 32 byte to the buffer,however
+        // the out_img's memory will be covered,finally,get the access error!
+        H5Tset_size(m_szomics_strtype, sizeof(m_szomics) / sizeof(char));
         hid_t fattr = H5Aopen(file_id, "omics", H5P_DEFAULT);
-        H5Aread(fattr, strtype, m_szomics);
+        H5Aread(fattr, m_szomics_strtype, m_szomics);
+        H5TClose(m_szomics_strtype);
     }
     H5Tclose(strtype);
     H5Fclose(file_id);
