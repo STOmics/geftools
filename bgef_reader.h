@@ -80,6 +80,8 @@ class GEFTOOLS_API BgefReader {
     void getGeneExpression(unordered_map<string, vector<Expression>> &gene_exp_map);
     void SortGeneExpression(map<string, vector<Expression>> &gene_exp_map);
 
+    bool isOldFormat() const { return version_ <= GeneNameVersion; }
+
     /**
      * @brief Get the shape of wholeExp matrix.
      * @return [rows, cols]

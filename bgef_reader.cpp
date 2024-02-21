@@ -583,6 +583,7 @@ Gene *BgefReader::getGene_new() {
         H5Tinsert(memtype, "count", HOFFSET(Gene, count), H5T_NATIVE_UINT);
 
         new_genes_ = (Gene *)malloc(gene_num_ * sizeof(Gene));
+        
         H5Dread(gene_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, new_genes_);
         H5Tclose(strtype);
         H5Tclose(memtype);
