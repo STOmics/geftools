@@ -167,7 +167,7 @@ class GEFTOOLS_API CgefReader {
      * @param order    Order of count, "gene" or "cell".
      * @return
      */
-    int getSparseMatrixIndices(unsigned int *indices, unsigned int *indptr, unsigned int *count, const char *order);
+    int getSparseMatrixIndices(unsigned int *indices, unsigned int *indptr, unsigned short *count, const char *order);
 
     /**
      * @brief Gets indices for building csr_matrix.
@@ -176,7 +176,7 @@ class GEFTOOLS_API CgefReader {
      * @param gene_ind     CSR format index array of the matrix. same size as count.
      * @param count        CSR format data array of the matrix. Expression count.
      */
-    int getSparseMatrixIndices2(unsigned int *cell_ind, unsigned int *gene_ind, unsigned int *count);
+    int getSparseMatrixIndices2(unsigned int *cell_ind, unsigned int *gene_ind, unsigned short *count);
 
     /**
      * @brief Gets cellId and count from the geneExp dataset.

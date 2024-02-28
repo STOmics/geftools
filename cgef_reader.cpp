@@ -272,7 +272,7 @@ void CgefReader::getCellNameList(unsigned long long int *cell_pos_list) {
 }
 
 // indptr length = gene_num_ + 1
-int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indptr, unsigned int *count,
+int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indptr, unsigned short *count,
                                        const char *order) {
     if (order[0] == 'g') {
         if (restrict_region_ || gene_num_current_ < gene_num_) {
@@ -314,7 +314,7 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
             free(gene_exp_data);
         } else {
             hid_t memtype;
-            memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
+            memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned short));
             H5Tinsert(memtype, "count", 0, H5T_NATIVE_USHORT);
             H5Dread(gene_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, count);
             memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
@@ -377,7 +377,7 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
                 free(cell_exp_data);
             }
         } else {
-            hid_t memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
+            hid_t memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned short));
             H5Tinsert(memtype, "count", 0, H5T_NATIVE_USHORT);
             H5Dread(cell_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, count);
             memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
@@ -399,9 +399,9 @@ int CgefReader::getSparseMatrixIndices(unsigned int *indices, unsigned int *indp
     return 0;
 }
 
-int CgefReader::getSparseMatrixIndices2(unsigned int *cell_ind, unsigned int *gene_ind, unsigned int *count) {
+int CgefReader::getSparseMatrixIndices2(unsigned int *cell_ind, unsigned int *gene_ind, unsigned short *count) {
     hid_t memtype;
-    memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
+    memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned short));
     H5Tinsert(memtype, "count", 0, H5T_NATIVE_USHORT);
     H5Dread(gene_exp_dataset_id_, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, count);
     memtype = H5Tcreate(H5T_COMPOUND, sizeof(unsigned int));
