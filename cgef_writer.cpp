@@ -540,12 +540,12 @@ void CgefWriter::createGenedata(const vector<string> &gene_name_list) {
             min_cell_count = min_cell_count < cell_count ? min_cell_count : cell_count;
             max_cell_count = max_cell_count > cell_count ? max_cell_count : cell_count;
 
-            gene_data_list[i] = GeneData(gene_name_list[i].c_str(), "", offset, static_cast<unsigned int>(tmp.size()),
+            gene_data_list[i] = GeneData("",gene_name_list[i].c_str(), offset, static_cast<unsigned int>(tmp.size()),
                                          exp_count, max_MID_count);
 
             offset += tmp.size();
         } else {
-            gene_data_list[i] = GeneData(gene_name_list[i].c_str(), "", offset, 0, 0, 0);
+            gene_data_list[i] = GeneData("",gene_name_list[i].c_str(), offset, 0, 0, 0);
         }
     }
     storeGeneAndGeneExp(min_exp_count, max_exp_count, min_cell_count, max_cell_count, gene_data_list, gene_exp_list);

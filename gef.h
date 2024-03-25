@@ -229,12 +229,12 @@ struct GEFTOOLS_API GeneData {
     GeneData(const char *g, const char *n, unsigned int o, unsigned int c, unsigned int e, unsigned m) {
         int i = 0;
         while (g[i] != '\0') {
-            gene_name[i] = g[i];
+            gene_name_id[i] = g[i];
             ++i;
         }
         int j = 0;
         while (n[j] != '\0') {
-            gene_name_id[j] = n[j];
+            gene_name[j] = n[j];
             ++j;
         }
         offset = o;
@@ -242,8 +242,8 @@ struct GEFTOOLS_API GeneData {
         exp_count = e;
         max_mid_count = m;
     }
-    char gene_name[64] = {};
     char gene_name_id[64] = {};
+    char gene_name[64] = {};
     unsigned int offset {0};  ///< Offset of current gene in geneExp, 0-based
     unsigned int cell_count {0};
     unsigned int exp_count {0};

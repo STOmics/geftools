@@ -738,9 +738,9 @@ void cgefCellgem::writeGene_new() {
             expsum = ptr->m_expcnt;
             exonsum = ptr->m_exoncnt;
             if (cgefParam::GetInstance()->gef_version > GeneNameVersion) {
-                memcpy(gene_data_list[i].gene_name_id, m_genePtr[i].gene_name, 64);
+                memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene_name, 64);
             }
-            memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene, 64);
+            memcpy(gene_data_list[i].gene_name_id, m_genePtr[i].gene, 64);
             gene_data_list[i].cell_count = cellcnt;
             gene_data_list[i].exp_count = expsum;
             gene_data_list[i].max_mid_count = ptr->m_maxmid;
@@ -757,9 +757,9 @@ void cgefCellgem::writeGene_new() {
             delete ptr;
         } else {
             if (cgefParam::GetInstance()->gef_version > GeneNameVersion) {
-                memcpy(gene_data_list[i].gene_name_id, m_genePtr[i].gene_name, 64);
+                memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene_name, 64);
             }
-            memcpy(gene_data_list[i].gene_name, m_genePtr[i].gene, 64);
+            memcpy(gene_data_list[i].gene_name_id, m_genePtr[i].gene, 64);
             gene_data_list[i].cell_count = 0;
             gene_data_list[i].exp_count = 0;
             gene_data_list[i].max_mid_count = 0;
