@@ -261,14 +261,17 @@ int cellAdjust::CompleteBgefFile() {
             maxexp = std::max(maxexp, pgeneinfo->maxexp);
             maxexon = std::max(maxexon, pgeneinfo->maxexon);
 
-            if (m_bgefopts->has_gene_name) {
-                m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid,
+            //only append the data for bin 100
+            if(bin == 100) {
+                if (m_bgefopts->has_gene_name) {
+                    m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid,
                                                       m_bgefopts->gene_name_map[pgeneinfo->geneid].c_str(),
                                                       pgeneinfo->umicnt, pgeneinfo->e10);
-            } else {
-                m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid, "", pgeneinfo->umicnt, pgeneinfo->e10);
+                } else {
+                    m_bgefopts->m_vec_bin100.emplace_back(pgeneinfo->geneid, "", pgeneinfo->umicnt, pgeneinfo->e10);
+                }
             }
-
+            
             delete pgeneinfo;
             genecnt++;
             if (genecnt == m_bgefopts->map_gene_exp_.size()) {
